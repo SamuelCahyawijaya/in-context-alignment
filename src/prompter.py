@@ -4,7 +4,7 @@
 class ICLPrompter(object):
     __slots__ = ("instruction_template", "separator")
 
-    def __init__(self, template: str = "", separator: str = "\n") -> None:
+    def __init__(self, instruction_template: str = "", separator: str = "\n") -> None:
         self.instruction_template = instruction_template
         self.separator = separator
 
@@ -14,9 +14,9 @@ class ICLPrompter(object):
 
     def generate_prompt(self, 
         input_query: None | str = None, 
-        icl_exemplars: None | tuple(list, list) = None,
+        icl_exemplars: None | tuple[list, list] = None,
         icl_template: None | str = None,
-        input_alignment_exemplars: None | tuple(list, list) = None,
+        input_alignment_exemplars: None | tuple[list, list] = None,
         input_alignment_template: None | str = None,
         output_alignment_prompt: None | str = None
     ) -> str:
@@ -34,7 +34,7 @@ class ICLPrompter(object):
 
         # Format Input Alignment ICL
         if input_alignment_exemplars is not None:
-            for x, y in zip(*input_alignment_exemplars:)
+            for x, y in zip(*input_alignment_exemplars):
                 if input_alignment_template is None:
                     contexts.append(f'{x} => {y}')
                 else:
@@ -48,7 +48,7 @@ class ICLPrompter(object):
             context = '\n'.join(contexts)
             prompt = prompt.replace('[CONTEXT]', context)
         else:
-            # Remove `[ICL_EXEMPLARS]`
+            # Remove `[CONTEXT]`
             prompt = prompt.replace('[CONTEXT]', '')
 
         # Format Input Query
@@ -70,7 +70,7 @@ class ITCPrompter(object):
         
         if table_format == "markdown":
             header = f"| {' | '.join(self.headers)} |\n"
-            header_separator += f"|{'|'.join('---' for _ in self.headers)}|\n"
+            header_separator = f"|{'|'.join('---' for _ in self.headers)}|\n"
             self.header_template = header + header_separator
             self.row_template = f"| {' | '.join('{' + att_key + '}' for att_key in self.attribute_keys)} |"
         else:
@@ -87,12 +87,111 @@ class ITCPrompter(object):
         if exemplars is not None:
             numel = len(exemplars[self.attribute_keys[0]])
             for i in range(numel):
-                row_dict = {key: exemplars[key][i]} for key in self.attribute_keys:
+                row_dict = {key: exemplars[key][i] for key in self.attribute_keys}
                 rows.append(self.row_template.format(**row_dict))
 
         # Format Input Query
         rows.append(f'| {input_query} |')
 
         # Return Resulting Prompt
-        prompt = self.header_template + self.row_template + '\n'.join(rows)
+        prompt = self.header_template + '\n'.join(rows)
         return prompt
+    
+if __name__ == '__main__':
+    icl_prompter = ICLPrompter(instruction_template="What is the sentiment of the following sentences?\n[CONTEXT]\n[INPUT] => [LABELS_CHOICE]")
+    
+    print('== TEST ICL ==')
+    print('ZERO-SHOT')
+    print(
+        icl_prompter.generate_prompt(input_query='INPUT-QUERY')
+    )
+    print()
+    
+    print('ICL')
+    print(
+        icl_prompter.generate_prompt(
+            input_query='INPUT-QUERY',
+            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
+            icl_template='{} => {}',
+        )
+    )    
+    print()
+
+    print('INPUT-ALIGN')
+    print(
+        icl_prompter.generate_prompt(
+            input_query='INPUT-QUERY',
+            input_alignment_exemplars=(['EXA1', 'EXA2', 'EXA3'], ['EXB1', 'EXB2', 'EXB3']),
+            input_alignment_template='{} => {}',
+        )
+    )
+    print()
+
+    print('OUTPUT-ALIGN')
+    print(
+        icl_prompter.generate_prompt(
+            input_query='INPUT-QUERY',
+            output_alignment_prompt='OUTPUT-ALIGNMENT'
+        )
+    )
+    print()
+
+    print('ICL + INPUT-ALIGN')
+    print(
+        icl_prompter.generate_prompt(
+            input_query='INPUT-QUERY',
+            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
+            icl_template='{} => {}',
+            input_alignment_exemplars=(['EXA1', 'EXA2', 'EXA3'], ['EXB1', 'EXB2', 'EXB3']),
+            input_alignment_template='{} => {}',
+        )
+    )
+    print()
+    
+    print('ICL + OUTPUT-ALIGN')
+    print(
+        icl_prompter.generate_prompt(
+            input_query='INPUT-QUERY',
+            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
+            icl_template='{} => {}',
+            output_alignment_prompt='OUTPUT-ALIGNMENT'
+        )
+    )
+    print()
+
+    print('ALL')
+    print(
+        icl_prompter.generate_prompt(
+            input_query='INPUT-QUERY',
+            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
+            icl_template='{} => {}',
+            input_alignment_exemplars=(['EXA1', 'EXA2', 'EXA3'], ['EXB1', 'EXB2', 'EXB3']),
+            input_alignment_template='{} => {}',
+            output_alignment_prompt='OUTPUT-ALIGNMENT'
+        )
+    )
+    print()
+    
+    print('== TEST ITC ==')
+    itc_prompter = ITCPrompter(headers=['TGT-SENT','LABEL','SRC-SENT'], attribute_keys=['text_1', 'label', 'text_2'])
+    
+    print('ZERO-SHOT')
+    print(
+        itc_prompter.generate_prompt(
+            input_query='INPUT-QUERY'
+        )
+    )
+    print()
+    
+    print('FEW-SHOT')
+    print(
+        itc_prompter.generate_prompt(
+            input_query='INPUT-QUERY',
+            exemplars={
+                'text_1': ['EXA1', 'EXA2', 'EXA3'], 
+                'label':['LBL1', 'LBL2', 'LBL3'], 
+                'text_2': ['EXB1', 'EXB2', 'EXB3']
+            }
+        )
+    )
+    print()
