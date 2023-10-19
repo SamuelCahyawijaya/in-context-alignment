@@ -38,12 +38,10 @@ class DatasetIndexer(object):
 
     def get_similar_samples(self, query: str, n_samples: int) -> dict:
         if 'random' in self.index_type:
-            print('RANDOM')
             exemplars = []
             indices = np.random.choice(len(self.dataset), size=n_samples, replace=False)
         else:
             if 'count' in self.index_type:
-                print('COUNT')
                 sent_count = self.counter.transform([query])
                 count_score = np.squeeze(self.count_vec.dot(sent_count.T).toarray()) / (self.count_sum + np.finfo(np.float64).eps)
                 count_score = torch.softmax(torch.from_numpy(count_score), dim=-1).squeeze().numpy()
@@ -51,7 +49,6 @@ class DatasetIndexer(object):
                 count_score = 0
                 
             if 'tf-idf' in self.index_type:
-                print('TF-IDF')
                 sent_tfidf = self.tfidfer.transform([query])
                 tfidf_score = np.squeeze(self.tfidf_vec.dot(sent_tfidf.T).toarray()) / (self.tfidf_sum + np.finfo(np.float64).eps)
                 tfidf_score = torch.softmax(torch.from_numpy(tfidf_score), dim=-1).squeeze().numpy()
@@ -59,9 +56,8 @@ class DatasetIndexer(object):
                 tfidf_score = 0
 
             if 'sbert' in self.index_type:
-                print('SBERT')
                 sent_embed = self.sbert.encode([query], device='cuda:0', convert_to_tensor=True)
-                sbert_score = torch.softmax(((sent_embed @ self.sbert_embeddings.T) / self.sbert_emb_norm), dim=-1).squeeze().numpy()
+                sbert_score = torch.softmax(((sent_embed @ self.sbert_embeddings.T) / self.sbert_emb_norm), dim=-1).squeeze().cpu().numpy()
             else:
                 sbert_score = 0
 
@@ -85,42 +81,42 @@ if __name__ == '__main__':
 
     # Count Indexer
     print('COUNT INDEXER')
-    DatasetIndexer(dataset=dset, index_key='text_1', index_type='count')
+    indexer = DatasetIndexer(dataset=dset, index_key='text_1', index_type='count')
     print(indexer.get_similar_samples(query=query, n_samples=3))
     print()
 
     # TF-IDF Indexer
     print('TF-IDF INDEXER')
-    DatasetIndexer(dataset=dset, index_key='text_1', index_type='tf-idf')
+    indexer = DatasetIndexer(dataset=dset, index_key='text_1', index_type='tf-idf')
     print(indexer.get_similar_samples(query=query, n_samples=3))
     print()
 
     # SBERT Indexer
     print('SBERT INDEXER')
-    DatasetIndexer(dataset=dset, index_key='text_1', index_type='sbert')
+    indexer = DatasetIndexer(dataset=dset, index_key='text_1', index_type='sbert')
     print(indexer.get_similar_samples(query=query, n_samples=3))
     print()
 
     # Count + TF-IDF Indexer
     print('COUNT + TF-IDF INDEXER')
-    DatasetIndexer(dataset=dset, index_key='text_1', index_type=['count', 'tf-idf'])
+    indexer = DatasetIndexer(dataset=dset, index_key='text_1', index_type=['count', 'tf-idf'])
     print(indexer.get_similar_samples(query=query, n_samples=3))
     print()
 
     # Count + SBERT Indexer
     print('COUNT + SBERT INDEXER')
-    DatasetIndexer(dataset=dset, index_key='text_1', index_type=['count', 'sbert'])
+    indexer = DatasetIndexer(dataset=dset, index_key='text_1', index_type=['count', 'sbert'])
     print(indexer.get_similar_samples(query=query, n_samples=3))
     print()
 
     # TF-IDF + SBERT Indexer
     print('TF-IDF + SBERT INDEXER')
-    DatasetIndexer(dataset=dset, index_key='text_1', index_type=['tf-idf', 'sbert'])
+    indexer = DatasetIndexer(dataset=dset, index_key='text_1', index_type=['tf-idf', 'sbert'])
     print(indexer.get_similar_samples(query=query, n_samples=3))
     print()
     
     # Count + TF-IDF  + SBERT Indexer
     print('COUNT + TF-IDF + SBERT INDEXER')
-    DatasetIndexer(dataset=dset, index_key='text_1', index_type=['count', 'tf-idf', 'sbert'])
+    indexer = DatasetIndexer(dataset=dset, index_key='text_1', index_type=['count', 'tf-idf', 'sbert'])
     print(indexer.get_similar_samples(query=query, n_samples=3))
     print()
