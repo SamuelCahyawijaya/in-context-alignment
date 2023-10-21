@@ -6,6 +6,8 @@ Original file is located at
     https://colab.research.google.com/drive/1Ru8DyS2ALWfRdkjOPHj-KNjw6Pfa44Nd
 """
 import os, sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
+
 import csv
 from os.path import exists
 import glob
@@ -16,7 +18,6 @@ from numpy import argmax
 import pandas as pd
 from tqdm import tqdm
 from sklearn.metrics import f1_score, accuracy_score, classification_report
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
 import torch
 import torch.nn.functional as F
@@ -24,130 +25,45 @@ import datasets
 
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM
 
-from prompts import get_prompt
+from dataset_utils import load_dataset
+from indexer import DatasetIndexer
+from prompter import ICLPrompter, ITCPrompter
 
 DEBUG=False
 
 lang_map = {
-    'btk': 'Batak', 'bew': 'Betawi', 'sun': 'Sundanese', 'jav': 'Javanese',
-    'mad': 'Madurese', 'mak': 'Makassarese', 'min': 'Minangkabau', 'mui': 'Musi', 
-    'rej': 'Rejang', 'abs': 'Ambonese', 'bhp': 'Bima'
+    'btk': 'Batak', 'sun': 'Sundanese', 'jav': 'Javanese', 
+    'mad': 'Madurese', 'mak': 'Buginese', 'min': 'Minangkabau',
+    'amh': 'Amharic', 'hau': 'Hausa', 'ibo': 'Igbo', 'lug': 'Luganda', 'pcm': 'Nigerian Pidgin',
+    'sna': 'chShona', 'swa': 'Kiswahili', 'xho': 'isiXhosa', 'yor': 'Yorùbá',
+    'aym': 'Aymara', 'bzd': 'Bribri', 'cni': 'Asháninka', 'grn': 'Guaraní', 'hch': 'Wixarika',
+    'nah': 'Nahuatl', 'oto': 'Otomí', 'quy': 'Quechua', 'shp': 'Shipibo-Konibo', 'tar': 'Rarámuri'
 }
 
-# Data Loading
-def load_dataset(dataset, task, lang, num_sample:int=-1, base_path='./data'):
-    data_files = {}
-    for path in glob.glob(f'{base_path}/{dataset}-{task}-{lang}-*.csv'):
-        split = path.split('-')[-1][:-4]
-        data_files[split] = path
-        #add path arguments to enable sampled data collection
-    output_dataset = datasets.load_dataset('csv', data_files=data_files)
-    if num_sample == -1:
-        return output_dataset
-    else:
-        return output_dataset.filter(lambda _, idx: idx < num_sample, with_indices=True)
-
-def load_nlg_tasks():
-    meta = []
-    for path in glob.glob('./data/nusa_kalimat-mt-*.csv'):
-        meta.append(tuple(path.split('/')[-1][:-4].split('-')[:3]))
-    meta = sorted(list(set(filter(lambda x: x[1] == 'mt', meta))))
-    return { (dataset, task, lang) : load_dataset(dataset, task, lang) for (dataset, task, lang) in meta } 
-
-def load_nlu_tasks():
-    meta = []
-    for path in glob.glob('./data/nusa_kalimat-emot-*.csv'):
-        meta.append(tuple(path.split('/')[-1][:-4].split('-')[:3]))
-    # for path in glob.glob('./data/nusa_kalimat-senti-*.csv'):
-    #     meta.append(tuple(path.split('/')[-1][:-4].split('-')[:3]))
-    return { (dataset, task, lang) : load_dataset(dataset, task, lang) for (dataset, task, lang) in meta } 
-
-#  Prompting & Predict
-def to_prompt(input, prompt, labels, parallel_texts=None, parallel_langs=None):        
-    # single label
-    if 'text' in input:
-        prompt = prompt.replace('[INPUT]', input['text'])
-    else:
-        prompt = prompt.replace('[INPUT_A]', input['text_1'])
-        prompt = prompt.replace('[INPUT_B]', input['text_2'])
-
-    # replace [OPTIONS] to A, B, or C
-    if "[OPTIONS]" in prompt:
-        new_labels = [f'{l}' for l in labels]
-        new_labels[-1] = "or " + new_labels[-1] 
-        if len(new_labels) > 2:
-            prompt = prompt.replace('[OPTIONS]', ', '.join(new_labels))
-        else:
-            prompt = prompt.replace('[OPTIONS]', ' '.join(new_labels))
-
-    # Add parallel context
-    if parallel_texts is not None:
-        if type(parallel_texts) is not list:
-            parallel_texts = [parallel_texts]
-        
-        lang_1, lang_2 = parallel_langs
-        prefixes = []
-        for text_1, text_2 in parallel_texts:
-            prefixes.append(f'{lang_1}: {text_1}\n{lang_2}: {text_2}')
-        prefix = '\n\n'.join(prefixes)
-        prompt = f'{prefix}\n\nGiven the above {lang_1}-{lang_2} parallel sentences context for understanding {lang_2}; {prompt}'
-
-    return prompt
-
-@torch.no_grad()
-def get_logprobs(model, tokenizer, prompt, label_ids=None, label_attn=None):
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024).to('cuda')
-    input_ids, output_ids = inputs["input_ids"], inputs["input_ids"][:, 1:]
-    
-    if model.config.is_encoder_decoder:
-        outputs = model(**inputs, labels=label_ids)
-        logits = outputs.logits
-        
-        logprobs = torch.gather(F.log_softmax(logits, dim=2), 2, label_ids.unsqueeze(2)) * label_attn.unsqueeze(2)
-        return logprobs.sum(dim=-1)
-    else:    
-        outputs = model(**inputs, labels=input_ids)
-        logits = outputs.logits
-        
-        logprobs = torch.gather(F.log_softmax(logits, dim=2), 2, output_ids.unsqueeze(2))
-        return logprobs[:,-label_ids.shape[-1]:].sum(dim=-1)
-
-def predict_classification(model, tokenizer, prompt, labels):
-    labels_encoded = tokenizer(labels, add_special_tokens=False, padding=True, return_tensors='pt')
-    list_label_ids = labels_encoded['input_ids'].to('cuda')
-    list_label_attn = labels_encoded['attention_mask'].to('cuda')
-    if model.config.is_encoder_decoder:
-        probs = [
-            get_logprobs(model, tokenizer, prompt.replace('[LABELS_CHOICE]', ''), label_ids.view(1,-1), label_attn.view(1,-1)) 
-            for (label_ids, label_attn) in zip(list_label_ids, list_label_attn)
-        ]
-    else:
-        probs = [
-            get_logprobs(model, tokenizer, prompt.replace('[LABELS_CHOICE]', label), label_ids.view(1,-1), label_attn.view(1,-1)) 
-            for (label, label_ids, label_attn) in zip(labels, list_label_ids, list_label_attn)
-        ]
-    return probs
+('nt_senti_test_dset', 'icl_nusax_senti_dset', 'eng', 'nusax_mt_ind_dset', 'nusax_combined_ind_dset')
+('masakhanews_test_dset', 'icl_masakhanews_dset', 'eng', 'mafand_mt_dset', 'mafand_rand_label_dset')
+('americasnli_test_dset', 'icl_americasnli_dset', 'spa',  'americasnli_combined_dev_dset', 'americasnli_combined_dev_dset')
+dataset_to_index_column_map = {
+    'americasnli': ['premise_1', 'hypothesis_1'],
+    'nusatranslation': ['text_1'],
+    'masakhanews': ['text_1']
+}
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_nusa_translate.py <model_path_or_name> <[OPTIONAL] exemplar_type> <num_exemplar>')
+        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <exemplar_type> <icl_num_exemplar> <tia_num_exemplar> <include_tio>')
 
+    BASE_PAtH='./dataset'
     MODEL = sys.argv[1]
-    EXEMPLAR_TYPE = sys.argv[2]
-    if len(sys.argv) == 4:
-        EXEMPLAR_COUNT = int(sys.argv[3])
-    else:
-        EXEMPLAR_COUNT = 0
-        
-    EXEMPLAR_NAME = EXEMPLAR_TYPE
-    if EXEMPLAR_TYPE == 'similar':
-        EXEMPLAR_NAME = f'{EXEMPLAR_NAME}-{EXEMPLAR_COUNT}'
+    DATASET_NAME = sys.argv[2]
+    INDEX_TYPE = sys.argv[3]
+    ICL_EXEMPLAR_COUNT = int(sys.argv[4])
+    TIA_EXEMPLAR_COUNT = int(sys.argv[5])
+    
+    EXEMPLAR_NAME = f'{EXEMPLAR_TYPE}-{ICL_EXEMPLAR_COUNT}-{}'
 
-    os.makedirs('./metrics', exist_ok=True) 
-    os.makedirs('./outputs_translate', exist_ok=True) 
-
-    # Load Prompt
-    prompt_templates = get_prompt()
+    os.makedirs('./metrics_aligner', exist_ok=True) 
+    os.makedirs('./outputs_aligner', exist_ok=True) 
 
     # Load Dataset
     print('Load NLU Datasets...')
@@ -168,12 +84,11 @@ if __name__ == '__main__':
     else:
         model = AutoModelForSeq2SeqLM.from_pretrained(MODEL, device_map="auto", load_in_8bit=True)
         tokenizer.pad_token = tokenizer.eos_token # Use EOS to pad label
-        
+    model = torch.compile(model)    
     model.eval()
-    torch.no_grad()
 
     metrics = {
-        'dataset': [], 'task': [], 'lang': [], 'prompt_id': [],
+        'dataset': [], 'task': [], 'lang': [],
         'accuracy': [], 'macro_f1': [], 'weighted_f1': []
     }
     
@@ -195,9 +110,9 @@ if __name__ == '__main__':
             inputs, preds, golds = [], [], []
             
             # Check saved data
-            if exists(f'outputs_translate/{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv'):
+            if exists(f'outputs_aligner/input-align_{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv'):
                 print("Output exist, use partial log instead")
-                with open(f'outputs_translate/{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv') as csvfile:
+                with open(f'outputs_aligner/input-align-{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv') as csvfile:
                     reader = csv.DictReader(csvfile)
                     for row in reader:
                         inputs.append(row["Input"])
@@ -244,9 +159,9 @@ if __name__ == '__main__':
                 if not os.path.exists('cache/sbert-nusawrites-cross.pt'):
                     sbert = SentenceTransformer('sentence-transformers/stsb-xlm-r-multilingual')
                     embeddings = sbert.encode(src_sents, batch_size=128, device='cuda:0', show_progress_bar=True, convert_to_tensor=True)
-                    torch.save(embeddings.cpu(), f'cache/similar-sbert-cross-{dset_name}.pt')
+                    torch.save(embeddings.cpu(), f'cache/similar-sbert-cross-{dset_name}_{lang}.pt')
                 else:
-                    embeddings = torch.load(f'cache/similar-sbert-cross-{dset_name}.pt').cuda()
+                    embeddings = torch.load(f'cache/similar-sbert-cross-{dset_name}_{lang}.pt').cuda()
                 
             elif EXEMPLAR_TYPE == 'similar-sbert-mono':
                 # Load Model
@@ -255,9 +170,9 @@ if __name__ == '__main__':
                     sentences = ["This is an example sentence", "Each sentence is converted"]
                     sbert = SentenceTransformer('sentence-transformers/stsb-xlm-r-multilingual')
                     embeddings = sbert.encode(tgt_sents, batch_size=128, device='cuda:0', show_progress_bar=True, convert_to_tensor=True)
-                    torch.save(embeddings.cpu(), f'cache/similar-sbert-mono-{dset_name}.pt')
+                    torch.save(embeddings.cpu(), f'cache/similar-sbert-mono-{dset_name}_{lang}.pt')
                 else:
-                    embeddings = torch.load(f'cache/similar-sbert-mono-{dset_name}.pt').cuda()
+                    embeddings = torch.load(f'cache/similar-sbert-mono-{dset_name}_{lang}.pt').cuda()
                     
             ###
             # Run Inference
@@ -315,9 +230,8 @@ if __name__ == '__main__':
                     ###
                     # Perform zero-shot / few-shot Inference
                     ###
-                    with torch.inference_mode():
-                        out = predict_classification(model, tokenizer, prompt_text, label_names)
-                        pred = argmax([o.cpu().detach() for o in out])
+                    out = predict_classification(model, tokenizer, prompt_text, label_names)
+                    pred = argmax([o.cpu().detach() for o in out])
 
                     inputs.append(prompt_text)
                     preds.append(label_names[int(pred)])
@@ -326,10 +240,10 @@ if __name__ == '__main__':
                     # partial saving
                     if len(preds) % 100 == 0:
                         inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-                        inference_df.to_csv(f'outputs_translate/{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
+                        inference_df.to_csv(f'outputs_aligner/input-align-{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
                 # full saving
                 inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-                inference_df.to_csv(f'outputs_translate/{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
+                inference_df.to_csv(f'outputs_aligner/input-align-{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
 
             cls_report = classification_report(golds, preds, output_dict=True)
             acc, macro_f1, weighted_f1 = cls_report['accuracy'], cls_report['macro avg']['f1-score'], cls_report['weighted avg']['f1-score']
@@ -347,4 +261,4 @@ if __name__ == '__main__':
             metrics['macro_f1'].append(macro_f1)
             metrics['weighted_f1'].append(weighted_f1)
 
-    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics/results_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
+    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics_aligners/results_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)

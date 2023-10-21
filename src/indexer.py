@@ -7,6 +7,10 @@ from sentence_transformers import SentenceTransformer
 
 class DatasetIndexer(object):
     def __init__(self, dataset: Dataset, index_key: str, index_type: str | list[str]) -> None:
+        # dataset: HF datasets.Dataset object to be indexed
+        # index_key: The name of the column of the dataset used for the index (only support single column for now)
+        # index_type: Type of the index (`random`, `count`, `tf-idf`, `sbert`). 
+        #             Scoring-based index (`count`, `tf-idf`, `sbert`) can be aggregated by providing list[str]
         self.dataset = dataset
         self.index_key = index_key
         if type(index_type) is str:
