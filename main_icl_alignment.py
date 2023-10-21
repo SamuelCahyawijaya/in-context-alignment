@@ -40,43 +40,41 @@ lang_map = {
     'nah': 'Nahuatl', 'oto': 'Otomí', 'quy': 'Quechua', 'shp': 'Shipibo-Konibo', 'tar': 'Rarámuri'
 }
 
-('nt_senti_test_dset', 'icl_nusax_senti_dset', 'eng', 'nusax_mt_ind_dset', 'nusax_combined_ind_dset')
-('masakhanews_test_dset', 'icl_masakhanews_dset', 'eng', 'mafand_mt_dset', 'mafand_rand_label_dset')
-('americasnli_test_dset', 'icl_americasnli_dset', 'spa',  'americasnli_combined_dev_dset', 'americasnli_combined_dev_dset')
 dataset_to_index_column_map = {
-    'americasnli': ['premise_1', 'hypothesis_1'],
-    'nusatranslation': ['text_1'],
-    'masakhanews': ['text_1']
+    # key: (icl_keys, iia_keys)
+    'americasnli': (['premise', 'hypothesis'], ['premise_1', 'hypothesis_1']),
+    'nusatranslation': ['text', 'text_1'],
+    'masakhanews': ['text', 'text_1']
 }
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <exemplar_type> <icl_num_exemplar> <tia_num_exemplar> <include_tio>')
+        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <index_type> <icl_num_exemplar> <tia_num_exemplar> <include_tio>')
 
     BASE_PAtH='./dataset'
     MODEL = sys.argv[1]
     DATASET_NAME = sys.argv[2]
-    INDEX_TYPE = sys.argv[3]
-    ICL_EXEMPLAR_COUNT = int(sys.argv[4])
-    TIA_EXEMPLAR_COUNT = int(sys.argv[5])
+    ICL_TYPE = sys.argv[3]
+    INDEX_TYPE = sys.argv[4]
+    ICL_EXEMPLAR_COUNT = int(sys.argv[5])
+    IIA_EXEMPLAR_COUNT = int(sys.argv[6])
+    USE_IOA = bool(sys.argv[7])
     
-    EXEMPLAR_NAME = f'{EXEMPLAR_TYPE}-{ICL_EXEMPLAR_COUNT}-{}'
+    EXEMPLAR_NAME = f'{ICL_TYPE}-{INDEX_TYPE}-icl{ICL_EXEMPLAR_COUNT}-iia{IIA_EXEMPLAR_COUNT}-ioa{USE_IOA}'
 
     os.makedirs('./metrics_aligner', exist_ok=True) 
     os.makedirs('./outputs_aligner', exist_ok=True) 
 
     # Load Dataset
-    print('Load NLU Datasets...')
-    nlu_dsets, nlg_dsets = load_nlu_tasks(), load_nlg_tasks()
+    print('Load Datasets...')
+    eval_dsets, icl_dsets, xicl_lang, iia_dsets, itc_dsets, ioa_df = load_dataset(dataset=DATASET_NAME, base_path=BASE_PATH)
 
-    print(f'Loaded {len(nlu_dsets)} NLU datasets')
-    for i, dset_subset in enumerate(nlu_dsets.keys()):
+    print(f'Loaded {len(eval_dsets)} datasets')
+    for i, dset_subset in enumerate(eval_dsets.keys()):
         print(f'{i} {dset_subset}')
         
-    print(f'Loaded {len(nlg_dsets)} NLG datasets')
-    for i, dset_subset in enumerate(nlg_dsets.keys()):
-        print(f'{i} {dset_subset}')
-
+    # Prepare Data Indexer
+    
     # Load Model
     tokenizer = AutoTokenizer.from_pretrained(MODEL, truncation_side='left')
     if "bloom" in MODEL or "xglm" in MODEL or "gpt2" in MODEL:
@@ -92,7 +90,8 @@ if __name__ == '__main__':
         'accuracy': [], 'macro_f1': [], 'weighted_f1': []
     }
     
-    for key, nlu_dset in nlu_dsets.items():
+    for key, nlu_dset in eval_dsets.items():
+        # TODO
         # Retrieve metadata
         dset_name, task, lang = key
         test_dset = nlu_dset['test']        
