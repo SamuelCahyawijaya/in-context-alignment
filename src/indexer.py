@@ -6,13 +6,18 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sentence_transformers import SentenceTransformer
 
 class DatasetIndexer(object):
-    def __init__(self, dataset: Dataset, index_key: str, index_type: str | list[str]) -> None:
+    def __init__(self, dataset: Dataset, index_key: str | list[str], index_type: str | list[str]) -> None:
         # dataset: HF datasets.Dataset object to be indexed
         # index_key: The name of the column of the dataset used for the index (only support single column for now)
         # index_type: Type of the index (`random`, `count`, `tf-idf`, `sbert`). 
         #             Scoring-based index (`count`, `tf-idf`, `sbert`) can be aggregated by providing list[str]
         self.dataset = dataset
-        self.index_key = index_key
+        self.index_keys = index_keys
+        if type(index_key) is str:
+            self.index_key = [index_key]
+        else:
+            self.index_key = index_key
+            
         if type(index_type) is str:
             self.index_type = [index_type]
         else:
@@ -25,8 +30,14 @@ class DatasetIndexer(object):
         # Generate Indices
         if 'random' in self.index_type:
             return
-
-        text_corpus = self.dataset[self.index_key]
+        
+        text_corpus = []
+        for i in range(len(self.dataset)):
+            text = []
+            for key in range(self.index_key):
+                 text.append(self.dataset[i][key])
+            text_corpus.append('. '.join(text))
+        
         if 'count' in self.index_type:
             self.counter = CountVectorizer(max_features=10000, ngram_range=(1, 3), min_df=3, binary=True, lowercase=True)
             self.count_vec = self.counter.fit_transform(text_corpus)
@@ -40,7 +51,20 @@ class DatasetIndexer(object):
             self.sbert_embeddings = self.sbert.encode(text_corpus, batch_size=128, device='cuda:0', convert_to_tensor=True)
             self.sbert_emb_norm = self.sbert_embeddings.norm(dim=-1)
 
-    def get_similar_samples(self, query: str, n_samples: int) -> dict:
+    def get_similar_samples(self, query: str | dict | list, n_samples: int) -> dict:
+        # query: string or list of string or dictionary representing a single instance of sample from the dataset
+        # n_samples: number of similar samples to retrieve
+        
+        # Transform query to stirng
+        if type(query) is list:
+            query = '. '.join(query)
+        elif type(query) is dict:
+            text = []
+            for key in range(self.index_key):
+                 text.append(query[key])
+            query = '. '.join(text)
+            
+        # Perform indexing
         if 'random' in self.index_type:
             exemplars = []
             indices = np.random.choice(len(self.dataset), size=n_samples, replace=False)

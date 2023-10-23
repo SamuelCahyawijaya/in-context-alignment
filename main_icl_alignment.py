@@ -37,30 +37,38 @@ lang_map = {
     'amh': 'Amharic', 'hau': 'Hausa', 'ibo': 'Igbo', 'lug': 'Luganda', 'pcm': 'Nigerian Pidgin',
     'sna': 'chShona', 'swa': 'Kiswahili', 'xho': 'isiXhosa', 'yor': 'Yorùbá',
     'aym': 'Aymara', 'bzd': 'Bribri', 'cni': 'Asháninka', 'grn': 'Guaraní', 'hch': 'Wixarika',
-    'nah': 'Nahuatl', 'oto': 'Otomí', 'quy': 'Quechua', 'shp': 'Shipibo-Konibo', 'tar': 'Rarámuri'
+    'nah': 'Nahuatl', 'oto': 'Otomí', 'quy': 'Quechua', 'shp': 'Shipibo-Konibo', 'tar': 'Rarámuri',
+    'ind': 'Indonesian', 'eng': 'English', 'spa': 'spanish'
 }
-
-dataset_to_index_column_map = {
-    # key: (icl_keys, iia_keys)
-    'americasnli': (['premise', 'hypothesis'], ['premise_1', 'hypothesis_1']),
-    'nusatranslation': ['text', 'text_1'],
-    'masakhanews': ['text', 'text_1']
+icl_prompter = ICLPrompter(instruction_template=)
+dataset_to_metadata_map = {
+    # key: (prompt_template, icl_template, iaa_template, icl_keys, iia_keys, x_iia_keys)
+    'americasnli': (
+        "Predict the entailment label of the following sentence pair:\n[CONTEXT]\n[INPUT] => [LABELS_CHOICE]", 
+        "Premise: {}", 
+        "Predict whether the premise of the following sentences?\n[CONTEXT]\n[INPUT] => [LABELS_CHOICE]", 
+        ['premise', 'hypothesis'], ['premise_1', 'hypothesis_1'], ['premise_2', 'hypothesis_2']
+    ),
+    'nusatranslation': ('text', 'text_1', 'text_2'),
+    'masakhanews': ('text', 'text_1', 'text_2')
 }
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <index_type> <icl_num_exemplar> <tia_num_exemplar> <include_tio>')
+        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <iaa_type> <icl_index_type> <iia_index_type> <icl_num_exemplar> <iia_num_exemplar> <include_iio>')
 
     BASE_PAtH='./dataset'
     MODEL = sys.argv[1]
-    DATASET_NAME = sys.argv[2]
-    ICL_TYPE = sys.argv[3]
-    INDEX_TYPE = sys.argv[4]
-    ICL_EXEMPLAR_COUNT = int(sys.argv[5])
-    IIA_EXEMPLAR_COUNT = int(sys.argv[6])
-    USE_IOA = bool(sys.argv[7])
+    DATASET_NAME = sys.argv[2] # americasnli, nusatranslation, masakhanews
+    ICL_TYPE = sys.argv[3] # cross, mono, none
+    IIA_TYPE = sys.argv[4] # cross, mono, none
+    ICL_INDEX_TYPE = sys.argv[5] # random, count, tf-idf, sbert
+    IIA_INDEX_TYPE = sys.argv[6] # random, count, tf-idf, sbert
+    ICL_EXEMPLAR_COUNT = int(sys.argv[7])
+    IIA_EXEMPLAR_COUNT = int(sys.argv[8])
+    USE_IOA = bool(sys.argv[9])
     
-    EXEMPLAR_NAME = f'{ICL_TYPE}-{INDEX_TYPE}-icl{ICL_EXEMPLAR_COUNT}-iia{IIA_EXEMPLAR_COUNT}-ioa{USE_IOA}'
+    SAVE_NAME = f'{ICL_TYPE}-{INDEX_TYPE}-icl{ICL_EXEMPLAR_COUNT}-iia{IIA_EXEMPLAR_COUNT}-ioa{USE_IOA}'
 
     os.makedirs('./metrics_aligner', exist_ok=True) 
     os.makedirs('./outputs_aligner', exist_ok=True) 
@@ -72,8 +80,6 @@ if __name__ == '__main__':
     print(f'Loaded {len(eval_dsets)} datasets')
     for i, dset_subset in enumerate(eval_dsets.keys()):
         print(f'{i} {dset_subset}')
-        
-    # Prepare Data Indexer
     
     # Load Model
     tokenizer = AutoTokenizer.from_pretrained(MODEL, truncation_side='left')
@@ -90,174 +96,126 @@ if __name__ == '__main__':
         'accuracy': [], 'macro_f1': [], 'weighted_f1': []
     }
     
-    for key, nlu_dset in eval_dsets.items():
-        # TODO
-        # Retrieve metadata
-        dset_name, task, lang = key
-        test_dset = nlu_dset['test']        
-        print(f'Processing {dset_name}-{task}-{lang}')
+    for dset_lang, eval_dset in eval_dsets.items():
+        print(f'Processing {DATASET_NAME} {dset_lang}')
+
+        ###
+        # Preprocessing
+        ###
 
         # Retrieve & preprocess labels
-        label_names = list(set(test_dset['label']))
-        label_names = [str(label).lower().replace("_"," ") for label in label_names]
+        label_names = list(set(eval_dset['label']))
+        if USE_IOA:
+            # Map label names from original label to target language label using label_map
+            # TODO
+            label_names = label_names
         label_to_id_dict = { l : i for i, l in enumerate(label_names)}
-            
-        for prompt_id, prompt_template in enumerate(prompt_templates[task]):
-            if prompt_id not in [0, 1, 3]:
-                continue
 
-            inputs, preds, golds = [], [], []
+        ###
+        # Indexing
+        ###
+        prompt_template, icl_keys, iia_keys, x_iia_keys = dataset_to_metadata_map[DATASET_NAME]
+        if ICL_TYPE == 'cross':
+            icl_dset = icl_dsets[xicl_lang]    
+            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=INDEX_TYPE)
+        elif ICL_TYPE == 'mono'
+            icl_dset = icl_dsets[xicl_lang]    
+            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=INDEX_TYPE)
+        else:
+            icl_dset = None
+            icl_indexer = None
             
-            # Check saved data
-            if exists(f'outputs_aligner/input-align_{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv'):
-                print("Output exist, use partial log instead")
-                with open(f'outputs_aligner/input-align-{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv') as csvfile:
-                    reader = csv.DictReader(csvfile)
-                    for row in reader:
-                        inputs.append(row["Input"])
-                        preds.append(row["Pred"])
-                        golds.append(row["Gold"])
-                print(f"Skipping until {len(preds)}")
+        if IIA_TYPE == 'cross':  
+            iia_dset = iia_dsets[dset_lang]
+            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=x_iia_keys, index_type=INDEX_TYPE)
+        elif IIA_TYPE == 'mono'
+            iia_dset = iia_dsets[dset_lang]
+            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=iia_keys, index_type=INDEX_TYPE)
+        else:
+            iia_dset = None
+            iia_indexer = None
             
-            # Prepare parallel data
-            nlg_dset = nlg_dsets[(dset_name, 'mt', lang)]
-            nlg_df = pd.concat([
-                nlg_dset['train'].to_pandas(), nlg_dset['valid'].to_pandas(), nlg_dset['test'].to_pandas()
-            ]).set_index('id')
+        ###
+        # Inference
+        ###
             
-            ###
-            # Prepare Exemplars Indexer
-            ###
-            if 'mt-' in EXEMPLAR_TYPE:
-                if '-eng' in EXEMPLAR_TYPE:
-                    mt_path = f'./mt/nusa_kalimat-emot-{lang}-eng.csv'
-                else:
-                    mt_path = f'./mt/nusa_kalimat-emot-{lang}.csv'
-                    
-                if not exists(mt_path):
-                    # Skip non-existance language
+        inputs, preds, golds = [], [], []
+
+        # Check saved data
+        if exists(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv'):
+            print("Output exist, use partial log instead")
+            with open(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    inputs.append(row["Input"])
+                    preds.append(row["Pred"])
+                    golds.append(row["Gold"])
+            print(f"Skipping until {len(preds)}")
+
+        # Perform Inference
+        if len(preds) < len(eval_dset):
+            for e, sample in enumerate(tqdm(eval_dset)):
+                if e < len(preds):
                     continue
-                    
-                # Overwrite NLG Dataframe
-                nlg_df = pd.read_csv(mt_path)
-                nlg_df = nlg_df.rename(columns={"text": "tgt_text", "mt_text": "src_text"}).set_index('id')
-            elif EXEMPLAR_TYPE == ['similar', 'similar_bible']:
-                # Prepare Index
-                text_corpus = nlg_df['tgt_text'].values
 
-                tfidfer = TfidfVectorizer(max_features=10000, ngram_range=(1, 3), min_df=3)
-                counter = CountVectorizer(max_features=10000, ngram_range=(1, 3), min_df=3, binary=True)
-
-                tfidf_vec = tfidfer.fit_transform(text_corpus)
-                count_vec = counter.fit_transform(text_corpus)
-                count_sum = np.array(count_vec.sum(axis=-1)).squeeze()
-
-            elif EXEMPLAR_TYPE == 'similar-sbert-cross':
-                # Load Model & Encode Sentences
-                src_sents, tgt_sents = nlg_df['src_text'].values, nlg_df['tgt_text'].values
-                if not os.path.exists('cache/sbert-nusawrites-cross.pt'):
-                    sbert = SentenceTransformer('sentence-transformers/stsb-xlm-r-multilingual')
-                    embeddings = sbert.encode(src_sents, batch_size=128, device='cuda:0', show_progress_bar=True, convert_to_tensor=True)
-                    torch.save(embeddings.cpu(), f'cache/similar-sbert-cross-{dset_name}_{lang}.pt')
-                else:
-                    embeddings = torch.load(f'cache/similar-sbert-cross-{dset_name}_{lang}.pt').cuda()
+                ###
+                # Retrieve Exemplars
+                ###
                 
-            elif EXEMPLAR_TYPE == 'similar-sbert-mono':
-                # Load Model
-                src_sents, tgt_sents = nlg_df['src_text'].values, nlg_df['tgt_text'].values
-                if not os.path.exists('cache/sbert-nusawrites-mono.pt'):
-                    sentences = ["This is an example sentence", "Each sentence is converted"]
-                    sbert = SentenceTransformer('sentence-transformers/stsb-xlm-r-multilingual')
-                    embeddings = sbert.encode(tgt_sents, batch_size=128, device='cuda:0', show_progress_bar=True, convert_to_tensor=True)
-                    torch.save(embeddings.cpu(), f'cache/similar-sbert-mono-{dset_name}_{lang}.pt')
+                # Retrieve ICL Exemplars
+                if icl_indexer is not None:
+                    icl_samples = icl_indexer.get_similar_samples(sample, n_samples=ICL_EXEMPLAR_COUNT)
                 else:
-                    embeddings = torch.load(f'cache/similar-sbert-mono-{dset_name}_{lang}.pt').cuda()
+                    icl_samples = None
                     
-            ###
-            # Run Inference
-            ###
-            if len(preds) < len(test_dset):
-                for e, sample in enumerate(tqdm(test_dset)):
-                    if e < len(preds):
-                        continue
+                # Retrieve IIA Exemplars
+                if iia_indexer is not None:
+                    iia_samples = iia_indexer.get_similar_samples(sample, n_samples=IIA_EXEMPLAR_COUNT)
+                else:
+                    iia_samples = None
 
-                    ###
-                    # Prepare Exemplars
-                    ###
-                    if 'random' in EXEMPLAR_TYPE:
-                        parallel_texts = []
-                        for i in range(EXEMPLAR_COUNT):
-                            idx = random.randint(0, len(nlg_df)-1)
-                            parallel_texts.append((nlg_df.iloc[idx]['src_text'], nlg_df.iloc[idx]['tgt_text']))
-                    elif 'EXEMPLAR_TYPE' in ['similar', 'similar-bible']:
-                        num_sort = EXEMPLAR_COUNT
-                        z1 = tfidfer.transform([sample['text']])
-                        z2 = counter.transform([sample['text']])
-
-                        tfidf_score = np.squeeze(tfidf_vec.dot(z1.T).toarray())
-                        count_score = (np.squeeze(count_vec.dot(z2.T).toarray()) / (count_sum + np.finfo(np.float64).eps))
-                        sim_score = (tfidf_score + count_score) / 2
-                        sim_idx = np.argpartition(sim_score, kth=-num_sort, axis=0)[-num_sort:]
-
-                        parallel_texts = []
-                        for src_text, tgt_text in zip(sim_samples['src_text'], sim_samples['tgt_text']):
-                            parallel_texts.append((src_text, tgt_text))
-                    elif 'similar-sbert' in EXEMPLAR_TYPE:
-                        sent_embed = sbert.encode([sample['text']], device='cuda:0', convert_to_tensor=True)
-                        parallel_texts = []
-                        for idx in torch.topk(sent_embed @ (embeddings.T), EXEMPLAR_COUNT).indices:
-                            parallel_texts.append((src_text, tgt_text))
-                    else: # EXEMPLAR_TYPE = none
-                        parallel_texts = None
-
-                    ###
-                    # Prepare Zero-Shot / Few-Shot Prompt Text
-                    ###                        
-                    input_text, label = sample['text'], sample['label']
-                    if parallel_texts is not None: 
-                        # EXEMPLAR_TYPE in [translation, random, similar]
-                        # Add translation prefix
-                        if '-eng' in EXEMPLAR_TYPE:
-                            prompt_text = to_prompt(sample, prompt_template, label_names, parallel_texts, ('English', lang_map[lang]))
-                        else:
-                            prompt_text = to_prompt(sample, prompt_template, label_names, parallel_texts, ('Indonesian', lang_map[lang]))
-                    else:
-                        # EXEMPLAR_TYPE = none
-                        # Don't use any prefix augmentation
-                        prompt_text = to_prompt(sample, prompt_template, label_names, None, None)
+                if USE_IOA:
+                    ioa_text = None
                     
-                    ###
-                    # Perform zero-shot / few-shot Inference
-                    ###
-                    out = predict_classification(model, tokenizer, prompt_text, label_names)
-                    pred = argmax([o.cpu().detach() for o in out])
+                ###
+                # Prepare Zero-Shot / Few-Shot Prompt Text
+                ###            
+                input_text, label = sample['text'], sample['label']
+                if parallel_texts is not None: 
+                    
+                else:
+                    
+                
+                ###
+                # Perform zero-shot / few-shot Inference
+                ###
+                out = predict_classification(model, tokenizer, prompt_text, label_names)
+                pred = argmax([o.cpu().detach() for o in out])
 
-                    inputs.append(prompt_text)
-                    preds.append(label_names[int(pred)])
-                    golds.append(sample['label'])
+                inputs.append(prompt_text)
+                preds.append(label_names[int(pred)])
+                golds.append(sample['label'])
 
-                    # partial saving
-                    if len(preds) % 100 == 0:
-                        inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-                        inference_df.to_csv(f'outputs_aligner/input-align-{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
-                # full saving
-                inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-                inference_df.to_csv(f'outputs_aligner/input-align-{dset_name}_{task}_{lang}_{prompt_id}_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
+                # partial saving
+                if len(preds) % 100 == 0:
+                    inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
+                    inference_df.to_csv(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
+            # full saving
+            inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
+            inference_df.to_csv(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
 
             cls_report = classification_report(golds, preds, output_dict=True)
             acc, macro_f1, weighted_f1 = cls_report['accuracy'], cls_report['macro avg']['f1-score'], cls_report['weighted avg']['f1-score']
-            print(f'{dset_name}_{task}_{lang}')
+            print('{DATASET_NAME} {dset_lang}')
             print('accuracy', acc)
             print('f1 macro', macro_f1)
             print('f1 weighted', weighted_f1)
             print("===\n\n")
             
-            metrics['dataset'].append(dset_name)
-            metrics['task'].append(task)
-            metrics['lang'].append(lang)
-            metrics['prompt_id'].append(prompt_id)
+            metrics['dataset'].append(DATASET_NAME)
+            metrics['lang'].append(dset_lang)
             metrics['accuracy'].append(acc)
             metrics['macro_f1'].append(macro_f1)
             metrics['weighted_f1'].append(weighted_f1)
 
-    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics_aligners/results_{MODEL.split("/")[-1]}_{EXEMPLAR_NAME}.csv', index=False)
+    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics_aligners/results_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)

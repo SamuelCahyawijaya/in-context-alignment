@@ -4,19 +4,20 @@
 class ICLPrompter(object):
     __slots__ = ("instruction_template", "separator")
 
-    def __init__(self, instruction_template: str = "", separator: str = "\n") -> None:
+    def __init__(self, instruction_template: str = "", icl_key: str | list[str], iia_key: str | list[str], separator: str = "\n") -> None:
         self.instruction_template = instruction_template
+        self.icl_key = icl_key
+        self.iia_key = iia_key
         self.separator = separator
 
         assert '[CONTEXT]' in self.instruction_template
-        assert '[INPUT]' in self.instruction_template
-        assert '[LABELS_CHOICE]' in self.instruction_template
+        assert '[QUERY]' in self.instruction_template
 
     def generate_prompt(self, 
-        input_query: None | str = None, 
-        icl_exemplars: None | tuple[list, list] = None,
+        input_exemplar: None | dict = None, 
+        icl_exemplars: None | dict = None,
         icl_template: None | str = None,
-        input_alignment_exemplars: None | tuple[list, list] = None,
+        input_alignment_exemplars: None | dict = None,
         input_alignment_template: None | str = None,
         output_alignment_prompt: None | str = None
     ) -> str:
@@ -26,19 +27,14 @@ class ICLPrompter(object):
 
         # Format ICL
         if icl_exemplars is not None:
-            for x, y in zip(*icl_exemplars):
-                if icl_template is None:
-                    contexts.append(f'{x} => {y}')
-                else:
-                    contexts.append(icl_template.format(x, y))
+            for ex in zip(*icl_exemplars):
+                feats = [ex[key] for key in index_key + ['label']] 
+                contexts.append(icl_template.format(*feats))
 
         # Format Input Alignment ICL
         if input_alignment_exemplars is not None:
             for x, y in zip(*input_alignment_exemplars):
-                if input_alignment_template is None:
-                    contexts.append(f'{x} => {y}')
-                else:
-                    contexts.append(input_alignment_template.format(x, y))                        
+                contexts.append(input_alignment_template.format(x, y))                        
 
         # Format Label Alignment ICL
         if output_alignment_prompt is not None:
@@ -52,7 +48,8 @@ class ICLPrompter(object):
             prompt = prompt.replace('[CONTEXT]', '')
 
         # Format Input Query
-        prompt = prompt.replace('[INPUT]', input_query)
+        icl_template.format()
+        prompt = prompt.replace('[QUERY]', input_query)
 
         # Return Resulting Prompt
         return prompt
