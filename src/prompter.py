@@ -1,24 +1,24 @@
 ###
 # In-Context Learning with Alignment
 ###
+def dict_list_to_list_dict(dict_data):
+    return [dict(zip(dict_data,t)) for t in zip(*dict_data.values())]
+
 class ICLPrompter(object):
-    __slots__ = ("instruction_template", "separator")
+    __slots__ = ("instruction_template", "icl_template", "iia_template")
 
-    def __init__(self, instruction_template: str = "", icl_key: str | list[str], iia_key: str | list[str], separator: str = "\n") -> None:
+    def __init__(self, instruction_template: str, icl_template: str | None = None, iia_template: str | None = None) -> None:
         self.instruction_template = instruction_template
-        self.icl_key = icl_key
-        self.iia_key = iia_key
-        self.separator = separator
+        self.icl_template = icl_template
+        self.iia_template = iia_template
 
-        assert '[CONTEXT]' in self.instruction_template
-        assert '[QUERY]' in self.instruction_template
+        assert '{context}' in self.instruction_template
+        assert '{query}' in self.instruction_template
 
     def generate_prompt(self, 
-        input_exemplar: None | dict = None, 
-        icl_exemplars: None | dict = None,
-        icl_template: None | str = None,
-        input_alignment_exemplars: None | dict = None,
-        input_alignment_template: None | str = None,
+        input_exemplar: None | list[dict] | dict[list] = None, 
+        icl_exemplars: None | list[dict] | dict[list] = None,
+        input_alignment_exemplars: None | list[dict] | dict[list] = None,
         output_alignment_prompt: None | str = None
     ) -> str:
         # Init Prompt & Contexts
@@ -27,14 +27,19 @@ class ICLPrompter(object):
 
         # Format ICL
         if icl_exemplars is not None:
-            for ex in zip(*icl_exemplars):
-                feats = [ex[key] for key in index_key + ['label']] 
-                contexts.append(icl_template.format(*feats))
+            if type(icl_exemplars) == dict:
+                icl_exemplars = dict_list_to_list_dict(icl_exemplars)
+                
+            for ex in icl_exemplars:
+                contexts.append(self.icl_template.format(**ex))
 
         # Format Input Alignment ICL
         if input_alignment_exemplars is not None:
-            for x, y in zip(*input_alignment_exemplars):
-                contexts.append(input_alignment_template.format(x, y))                        
+            if type(input_alignment_exemplars) == dict:
+                input_alignment_exemplars = dict_list_to_list_dict(input_alignment_exemplars)
+                
+            for ex in input_alignment_exemplars:
+                contexts.append(self.iia_template.format(**ex))
 
         # Format Label Alignment ICL
         if output_alignment_prompt is not None:
@@ -42,14 +47,14 @@ class ICLPrompter(object):
 
         if len(contexts) > 0:
             context = '\n'.join(contexts)
-            prompt = prompt.replace('[CONTEXT]', context)
         else:
             # Remove `[CONTEXT]`
-            prompt = prompt.replace('[CONTEXT]', '')
+            context = ''
 
         # Format Input Query
-        icl_template.format()
-        prompt = prompt.replace('[QUERY]', input_query)
+        input_exemplar['label'] = '[LABELS_CHOICE]' # Make label a variable for inference
+        query = self.icl_template.format(**input_exemplar)
+        prompt = prompt.format(**{'context': context, 'query': query})
 
         # Return Resulting Prompt
         return prompt
@@ -88,28 +93,46 @@ class ITCPrompter(object):
                 rows.append(self.row_template.format(**row_dict))
 
         # Format Input Query
-        rows.append(f'| {input_query} |')
+        rows.append(f'| {input_query} | [LABELS_CHOICE]')
 
         # Return Resulting Prompt
         prompt = self.header_template + '\n'.join(rows)
         return prompt
     
 if __name__ == '__main__':
-    icl_prompter = ICLPrompter(instruction_template="What is the sentiment of the following sentences?\n[CONTEXT]\n[INPUT] => [LABELS_CHOICE]")
+    icl_prompter = ICLPrompter(
+        instruction_template="What is the sentiment of the following sentences?\n{context}\n{query}",
+        icl_template="{input} => {label}",
+        iia_template="{input} => {label}"
+    )
     
     print('== TEST ICL ==')
     print('ZERO-SHOT')
     print(
-        icl_prompter.generate_prompt(input_query='INPUT-QUERY')
+        icl_prompter.generate_prompt(input_exemplar={'input': 'Q1', 'label': 'XXX'})
     )
     print()
     
-    print('ICL')
+    print('ICL Dict List')
     print(
         icl_prompter.generate_prompt(
-            input_query='INPUT-QUERY',
-            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
-            icl_template='{} => {}',
+            input_exemplar={'input': 'Q1', 'label': 'XXX'},
+            icl_exemplars={
+                'input': ['EX1', 'EX2', 'EX3'], 'label': ['LBL1', 'LBL2', 'LBL3']
+            }
+        )
+    )    
+    print()
+    
+    print('ICL List Dict')
+    print(
+        icl_prompter.generate_prompt(
+            input_exemplar={'input': 'Q1', 'label': 'XXX'},
+            icl_exemplars=[
+                {'input': 'EX1', 'label': 'LBL1'},
+                {'input': 'EX2', 'label': 'LBL2'},
+                {'input': 'EX3', 'label': 'LBL3'}
+            ]
         )
     )    
     print()
@@ -117,9 +140,11 @@ if __name__ == '__main__':
     print('INPUT-ALIGN')
     print(
         icl_prompter.generate_prompt(
-            input_query='INPUT-QUERY',
-            input_alignment_exemplars=(['EXA1', 'EXA2', 'EXA3'], ['EXB1', 'EXB2', 'EXB3']),
-            input_alignment_template='{} => {}',
+            input_exemplar={'input': 'Q1', 'label': 'XXX'},
+            input_alignment_exemplars={
+                'input': ['EXA1', 'EXA2', 'EXA3'], 
+                'label': ['EXB1', 'EXB2', 'EXB3']
+            }
         )
     )
     print()
@@ -127,7 +152,7 @@ if __name__ == '__main__':
     print('OUTPUT-ALIGN')
     print(
         icl_prompter.generate_prompt(
-            input_query='INPUT-QUERY',
+            input_exemplar={'input': 'Q1', 'label': 'XXX'},
             output_alignment_prompt='OUTPUT-ALIGNMENT'
         )
     )
@@ -136,11 +161,15 @@ if __name__ == '__main__':
     print('ICL + INPUT-ALIGN')
     print(
         icl_prompter.generate_prompt(
-            input_query='INPUT-QUERY',
-            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
-            icl_template='{} => {}',
-            input_alignment_exemplars=(['EXA1', 'EXA2', 'EXA3'], ['EXB1', 'EXB2', 'EXB3']),
-            input_alignment_template='{} => {}',
+            input_exemplar={'input': 'Q1', 'label': 'XXX'},
+            icl_exemplars={
+                'input': ['EXA1', 'EXA2', 'EXA3'], 
+                'label': ['EXB1', 'EXB2', 'EXB3']
+            },
+            input_alignment_exemplars={
+                'input': ['EXA1', 'EXA2', 'EXA3'], 
+                'label': ['EXB1', 'EXB2', 'EXB3']
+            }
         )
     )
     print()
@@ -148,9 +177,11 @@ if __name__ == '__main__':
     print('ICL + OUTPUT-ALIGN')
     print(
         icl_prompter.generate_prompt(
-            input_query='INPUT-QUERY',
-            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
-            icl_template='{} => {}',
+            input_exemplar={'input': 'Q1', 'label': 'XXX'},
+            icl_exemplars={
+                'input': ['EXA1', 'EXA2', 'EXA3'], 
+                'label': ['EXB1', 'EXB2', 'EXB3']
+            },
             output_alignment_prompt='OUTPUT-ALIGNMENT'
         )
     )
@@ -159,11 +190,15 @@ if __name__ == '__main__':
     print('ALL')
     print(
         icl_prompter.generate_prompt(
-            input_query='INPUT-QUERY',
-            icl_exemplars=(['EX1', 'EX2', 'EX3'], ['LBL1', 'LBL2', 'LBL3']),
-            icl_template='{} => {}',
-            input_alignment_exemplars=(['EXA1', 'EXA2', 'EXA3'], ['EXB1', 'EXB2', 'EXB3']),
-            input_alignment_template='{} => {}',
+            input_exemplar={'input': 'Q1', 'label': 'XXX'},
+            icl_exemplars={
+                'input': ['EXA1', 'EXA2', 'EXA3'], 
+                'label': ['EXB1', 'EXB2', 'EXB3']
+            },
+            input_alignment_exemplars={
+                'input': ['EXA1', 'EXA2', 'EXA3'], 
+                'label': ['EXB1', 'EXB2', 'EXB3']
+            },
             output_alignment_prompt='OUTPUT-ALIGNMENT'
         )
     )
