@@ -6,13 +6,16 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sentence_transformers import SentenceTransformer
 
 class DatasetIndexer(object):
-    def __init__(self, dataset: Dataset, index_key: str | list[str], index_type: str | list[str]) -> None:
+    def __init__(self, 
+                 dataset: Dataset, index_key: str | list[str],  index_type: str | list[str], 
+                 sbert: SentenceTransformer | None = None
+        ) -> None:
         # dataset: HF datasets.Dataset object to be indexed
         # index_key: The name of the column of the dataset used for the index (only support single column for now)
         # index_type: Type of the index (`random`, `count`, `tf-idf`, `sbert`). 
         #             Scoring-based index (`count`, `tf-idf`, `sbert`) can be aggregated by providing list[str]
+        # sbert: SentenceTransformer used for inferencing
         self.dataset = dataset
-        self.index_keys = index_keys
         if type(index_key) is str:
             self.index_key = [index_key]
         else:
@@ -22,6 +25,14 @@ class DatasetIndexer(object):
             self.index_type = [index_type]
         else:
             self.index_type = index_type
+            
+        if 'sbert' in self.index_type:
+            if sbert is not None:
+                self.sbert = sbert
+            else:
+                self.sbert = SentenceTransformer('sentence-transformers/stsb-xlm-r-multilingual')
+        else:
+            self.sbert = None
             
         self._index_dataset()
 
@@ -34,7 +45,7 @@ class DatasetIndexer(object):
         text_corpus = []
         for i in range(len(self.dataset)):
             text = []
-            for key in range(self.index_key):
+            for key in self.index_key:
                  text.append(self.dataset[i][key])
             text_corpus.append('. '.join(text))
         
@@ -47,7 +58,6 @@ class DatasetIndexer(object):
             self.tfidf_vec = self.tfidfer.fit_transform(text_corpus)         
             self.tfidf_sum = np.array(self.tfidf_vec.sum(axis=-1)).squeeze()
         if 'sbert' in self.index_type:
-            self.sbert = SentenceTransformer('sentence-transformers/stsb-xlm-r-multilingual')
             self.sbert_embeddings = self.sbert.encode(text_corpus, batch_size=128, device='cuda:0', convert_to_tensor=True)
             self.sbert_emb_norm = self.sbert_embeddings.norm(dim=-1)
 
@@ -60,7 +70,7 @@ class DatasetIndexer(object):
             query = '. '.join(query)
         elif type(query) is dict:
             text = []
-            for key in range(self.index_key):
+            for key in self.index_key:
                  text.append(query[key])
             query = '. '.join(text)
             

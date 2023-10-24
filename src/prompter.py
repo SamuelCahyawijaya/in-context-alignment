@@ -5,15 +5,15 @@ def dict_list_to_list_dict(dict_data):
     return [dict(zip(dict_data,t)) for t in zip(*dict_data.values())]
 
 class ICLPrompter(object):
-    __slots__ = ("instruction_template", "icl_template", "iia_template")
+    __slots__ = ("prompt_template", "icl_template", "iia_template")
 
-    def __init__(self, instruction_template: str, icl_template: str | None = None, iia_template: str | None = None) -> None:
-        self.instruction_template = instruction_template
+    def __init__(self, prompt_template: str, icl_template: str | None = None, iia_template: str | None = None) -> None:
+        self.prompt_template = prompt_template
         self.icl_template = icl_template
         self.iia_template = iia_template
 
-        assert '{context}' in self.instruction_template
-        assert '{query}' in self.instruction_template
+        assert '{context}' in self.prompt_template
+        assert '{query}' in self.prompt_template
 
     def generate_prompt(self, 
         input_exemplar: None | list[dict] | dict[list] = None, 
@@ -22,7 +22,7 @@ class ICLPrompter(object):
         output_alignment_prompt: None | str = None
     ) -> str:
         # Init Prompt & Contexts
-        prompt = self.instruction_template
+        prompt = self.prompt_template
         contexts = []
 
         # Format ICL
@@ -101,7 +101,7 @@ class ITCPrompter(object):
     
 if __name__ == '__main__':
     icl_prompter = ICLPrompter(
-        instruction_template="What is the sentiment of the following sentences?\n{context}\n{query}",
+        prompt_template="What is the sentiment of the following sentences?\n{context}\n{query}",
         icl_template="{input} => {label}",
         iia_template="{input} => {label}"
     )

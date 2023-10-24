@@ -7,8 +7,8 @@ import datasets
 # NusaWrites Data Loading
 dataset_mapping = { 
     # key: (test_dset, icl_dset, x-icl_lang, iia_dset, itc_dset, ioa_dset)
-    'americasnli': ('americasnli_test_dset', 'icl_americasnli_dset', 'spa', 'americasnli_combined_dev_dset', 'americasnli_combined_dev_dset', 'americasnli_label_map.csv')
-    'masakhanews': ('masakhanews_test_dset', 'icl_masakhanews_dset', 'eng', 'mafand_mt_dset', 'mafand_rand_label_dset', 'masakhanews_label_map.csv')
+    'americasnli': ('americasnli_test_dset', 'icl_americasnli_dset', 'spa', 'americasnli_combined_dev_dset', 'americasnli_combined_dev_dset', 'americasnli_label_map.csv'),
+    'masakhanews': ('masakhanews_test_dset', 'icl_masakhanews_dset', 'eng', 'mafand_mt_dset', 'mafand_rand_label_dset', 'masakhanews_label_map.csv'),
     'nusatranslation': ('nt_senti_test_dset', 'icl_nusax_senti_dset', 'eng', 'nusax_mt_eng_dset', 'nusax_combined_eng_dset', 'nt_label_map.csv')
 }
 

@@ -28,6 +28,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausa
 from dataset_utils import load_dataset
 from indexer import DatasetIndexer
 from prompter import ICLPrompter, ITCPrompter
+from classifier import predict_classification
 
 DEBUG=False
 
@@ -40,35 +41,45 @@ lang_map = {
     'nah': 'Nahuatl', 'oto': 'Otomí', 'quy': 'Quechua', 'shp': 'Shipibo-Konibo', 'tar': 'Rarámuri',
     'ind': 'Indonesian', 'eng': 'English', 'spa': 'spanish'
 }
-icl_prompter = ICLPrompter(instruction_template=)
+
 dataset_to_metadata_map = {
-    # key: (prompt_template, icl_template, iaa_template, icl_keys, iia_keys, x_iia_keys)
+    # key: (prompt_template, icl_template, iia_template, icl_keys, iia_keys, x_iia_keys)
     'americasnli': (
-        "Predict the entailment label of the following sentence pair:\n[CONTEXT]\n[INPUT] => [LABELS_CHOICE]", 
-        "Premise: {}", 
-        "Predict whether the premise of the following sentences?\n[CONTEXT]\n[INPUT] => [LABELS_CHOICE]", 
+        'Predict the entailment label of the following sentence pair:\n{context}\n{query}',
+        'Premise: "{premise}"; Hypothesis: "{hypothesis}" => {label}',
+        '{premise_1} => {premise_2}\n{hypothesis_1} => {hypothesis_2}',
         ['premise', 'hypothesis'], ['premise_1', 'hypothesis_1'], ['premise_2', 'hypothesis_2']
     ),
-    'nusatranslation': ('text', 'text_1', 'text_2'),
-    'masakhanews': ('text', 'text_1', 'text_2')
+    'nusatranslation': (
+        'Predict the sentiment label of the following sentence:\n{context}\n{query}',
+        '{text} => {label}',
+        '{text_1} => {text_2}',
+        'text', 'text_1', 'text_2'
+    ),
+    'masakhanews': (
+        'Predict the topic of the following news title:\n{context}\n{query}',
+        '{text} => {label}',
+        '{text_1} => {text_2}',
+        'text', 'text_1', 'text_2'
+    )
 }
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <iaa_type> <icl_index_type> <iia_index_type> <icl_num_exemplar> <iia_num_exemplar> <include_iio>')
+        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iaa_type> <iia_index_type> <iia_num_exemplar> <include_iio>')
 
-    BASE_PAtH='./dataset'
+    BASE_PATH='./dataset'
     MODEL = sys.argv[1]
     DATASET_NAME = sys.argv[2] # americasnli, nusatranslation, masakhanews
     ICL_TYPE = sys.argv[3] # cross, mono, none
-    IIA_TYPE = sys.argv[4] # cross, mono, none
-    ICL_INDEX_TYPE = sys.argv[5] # random, count, tf-idf, sbert
-    IIA_INDEX_TYPE = sys.argv[6] # random, count, tf-idf, sbert
-    ICL_EXEMPLAR_COUNT = int(sys.argv[7])
+    ICL_INDEX_TYPE = sys.argv[4].split(',') # random, count, tf-idf, sbert
+    ICL_EXEMPLAR_COUNT = int(sys.argv[5])
+    IIA_TYPE = sys.argv[6] # cross, mono, none
+    IIA_INDEX_TYPE = sys.argv[7].split(',') # random, count, tf-idf, sbert
     IIA_EXEMPLAR_COUNT = int(sys.argv[8])
     USE_IOA = bool(sys.argv[9])
     
-    SAVE_NAME = f'{ICL_TYPE}-{INDEX_TYPE}-icl{ICL_EXEMPLAR_COUNT}-iia{IIA_EXEMPLAR_COUNT}-ioa{USE_IOA}'
+    SAVE_NAME = f'_icl-{ICL_TYPE}-{ICL_INDEX_TYPE}{ICL_EXEMPLAR_COUNT}_iia-{IIA_INDEX_TYPE}-{IIA_EXEMPLAR_COUNT}_ioa-{USE_IOA}'
 
     os.makedirs('./metrics_aligner', exist_ok=True) 
     os.makedirs('./outputs_aligner', exist_ok=True) 
@@ -102,6 +113,14 @@ if __name__ == '__main__':
         ###
         # Preprocessing
         ###
+        
+        # Extract Metadata
+        prompt_template, icl_template, iia_template, icl_keys, iia_keys, x_iia_keys = dataset_to_metadata_map[DATASET_NAME]
+        
+        # Prepare Prompter
+        icl_prompter = ICLPrompter(
+            prompt_template=prompt_template, icl_template=icl_template, iia_template=iia_template
+        )
 
         # Retrieve & preprocess labels
         label_names = list(set(eval_dset['label']))
@@ -114,23 +133,26 @@ if __name__ == '__main__':
         ###
         # Indexing
         ###
-        prompt_template, icl_keys, iia_keys, x_iia_keys = dataset_to_metadata_map[DATASET_NAME]
         if ICL_TYPE == 'cross':
             icl_dset = icl_dsets[xicl_lang]    
-            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=INDEX_TYPE)
-        elif ICL_TYPE == 'mono'
+            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=ICL_INDEX_TYPE)
+        elif ICL_TYPE == 'mono':
             icl_dset = icl_dsets[xicl_lang]    
-            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=INDEX_TYPE)
+            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=ICL_INDEX_TYPE)
         else:
             icl_dset = None
             icl_indexer = None
             
-        if IIA_TYPE == 'cross':  
+        sbert=None
+        if icl_indexer is not None:
+            sbert = icl_indexer.sbert
+            
+        if IIA_TYPE == 'cross':
             iia_dset = iia_dsets[dset_lang]
-            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=x_iia_keys, index_type=INDEX_TYPE)
-        elif IIA_TYPE == 'mono'
+            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=x_iia_keys, index_type=IIA_INDEX_TYPE, sbert=sbert)
+        elif IIA_TYPE == 'mono':
             iia_dset = iia_dsets[dset_lang]
-            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=iia_keys, index_type=INDEX_TYPE)
+            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=iia_keys, index_type=IIA_INDEX_TYPE, sbert=sbert)
         else:
             iia_dset = None
             iia_indexer = None
@@ -158,43 +180,60 @@ if __name__ == '__main__':
                 if e < len(preds):
                     continue
 
+                if type(icl_keys) == str:
+                    input_query = sample[icl_keys]
+                else: # type(icl_keys) == list
+                    input_query = [sample[key] for key in icl_keys]
+                label = sample['label']
+                
                 ###
                 # Retrieve Exemplars
                 ###
                 
                 # Retrieve ICL Exemplars
+
                 if icl_indexer is not None:
-                    icl_samples = icl_indexer.get_similar_samples(sample, n_samples=ICL_EXEMPLAR_COUNT)
+                    icl_samples = icl_indexer.get_similar_samples(input_query, n_samples=ICL_EXEMPLAR_COUNT)
                 else:
                     icl_samples = None
                     
                 # Retrieve IIA Exemplars
                 if iia_indexer is not None:
-                    iia_samples = iia_indexer.get_similar_samples(sample, n_samples=IIA_EXEMPLAR_COUNT)
+                    iia_samples = iia_indexer.get_similar_samples(input_query, n_samples=IIA_EXEMPLAR_COUNT)
                 else:
                     iia_samples = None
 
                 if USE_IOA:
-                    ioa_text = None
+                    ioa_prompt = 'DUMMY FIRST'
+                else:
+                    ioa_prompt = None
                     
                 ###
                 # Prepare Zero-Shot / Few-Shot Prompt Text
-                ###            
-                input_text, label = sample['text'], sample['label']
-                if parallel_texts is not None: 
+                ###
+                prompt_text = icl_prompter.generate_prompt(
+                    input_exemplar=sample,
+                    icl_exemplars=icl_samples,
+                    input_alignment_exemplars=iia_samples,
+                    output_alignment_prompt=ioa_prompt
+                )
                     
-                else:
-                    
-                
                 ###
                 # Perform zero-shot / few-shot Inference
                 ###
+                print(f'input_query: ' + str(input_query))
+                print(f'label: ' + label)
+                print(f'ioa_prompt: ' + ioa_prompt)
+                print(f'prompt_text:\n' + prompt_text)
+
                 out = predict_classification(model, tokenizer, prompt_text, label_names)
                 pred = argmax([o.cpu().detach() for o in out])
 
-                inputs.append(prompt_text)
+                print(f'label_names[int(pred)]: ' + label_names[int(pred)])
+                
+                inputs.append(input_query if type(input_query) == str else ' | '.join(input_query))
                 preds.append(label_names[int(pred)])
-                golds.append(sample['label'])
+                golds.append(label)
 
                 # partial saving
                 if len(preds) % 100 == 0:
