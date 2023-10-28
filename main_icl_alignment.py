@@ -14,7 +14,6 @@ import glob
 import random
 
 import numpy as np
-from numpy import argmax
 import pandas as pd
 from tqdm import tqdm
 from sklearn.metrics import f1_score, accuracy_score, classification_report
@@ -28,7 +27,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausa
 from dataset_utils import load_dataset
 from indexer import DatasetIndexer
 from prompter import ICLPrompter, ITCPrompter
-from classifier import predict_classification
+from classifier import predict_classification_batch
 
 DEBUG=False
 
@@ -66,7 +65,7 @@ dataset_to_metadata_map = {
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iaa_type> <iia_index_type> <iia_num_exemplar> <include_iio>')
+        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iaa_type> <iia_index_type> <iia_num_exemplar> <include_iio> <batch_size>')
 
     BASE_PATH='./dataset'
     MODEL = sys.argv[1]
@@ -77,9 +76,10 @@ if __name__ == '__main__':
     IIA_TYPE = sys.argv[6] # cross, mono, none
     IIA_INDEX_TYPE = sys.argv[7].split(',') # random, count, tf-idf, sbert
     IIA_EXEMPLAR_COUNT = int(sys.argv[8])
-    USE_IOA = bool(sys.argv[9])
+    USE_IOA = sys.argv[9] == 'True'
+    BATCH_SIZE= int(sys.argv[10])
     
-    SAVE_NAME = f'_icl-{ICL_TYPE}-{ICL_INDEX_TYPE}{ICL_EXEMPLAR_COUNT}_iia-{IIA_INDEX_TYPE}-{IIA_EXEMPLAR_COUNT}_ioa-{USE_IOA}'
+    SAVE_NAME = f'icl-{ICL_TYPE}-{"$".join(ICL_INDEX_TYPE)}-{ICL_EXEMPLAR_COUNT}_iia-{"$".join(IIA_INDEX_TYPE)}-{IIA_EXEMPLAR_COUNT}_ioa-{USE_IOA}'
 
     os.makedirs('./metrics_aligner', exist_ok=True) 
     os.makedirs('./outputs_aligner', exist_ok=True) 
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     else:
         model = AutoModelForSeq2SeqLM.from_pretrained(MODEL, device_map="auto", load_in_8bit=True)
         tokenizer.pad_token = tokenizer.eos_token # Use EOS to pad label
-    model = torch.compile(model)    
+    # model = torch.compile(model)    
     model.eval()
 
     metrics = {
@@ -175,6 +175,7 @@ if __name__ == '__main__':
             print(f"Skipping until {len(preds)}")
 
         # Perform Inference
+        prompts, labels = [], []
         if len(preds) < len(eval_dset):
             for e, sample in enumerate(tqdm(eval_dset)):
                 if e < len(preds):
@@ -218,34 +219,54 @@ if __name__ == '__main__':
                     output_alignment_prompt=ioa_prompt
                 )
                     
+                # print(f'input_query: ' + str(input_query))
+                # print(f'label: ' + label)
+                # print(f'ioa_prompt: ' + ioa_prompt)
+                # print(f'prompt_text:\n' + prompt_text)
+                
+                prompts.append(prompt_text)
+                labels.append(label)
+
                 ###
                 # Perform zero-shot / few-shot Inference
                 ###
-                print(f'input_query: ' + str(input_query))
-                print(f'label: ' + label)
-                print(f'ioa_prompt: ' + ioa_prompt)
-                print(f'prompt_text:\n' + prompt_text)
-
-                out = predict_classification(model, tokenizer, prompt_text, label_names)
-                pred = argmax([o.cpu().detach() for o in out])
-
-                print(f'label_names[int(pred)]: ' + label_names[int(pred)])
                 
-                inputs.append(input_query if type(input_query) == str else ' | '.join(input_query))
-                preds.append(label_names[int(pred)])
-                golds.append(label)
+                # Batch Inference
+                if len(prompts) == BATCH_SIZE:
+                    out = predict_classification_batch(model, tokenizer, prompts, label_names)
+                    hyps = torch.argmax(torch.stack(out, dim=-1), dim=-1).tolist()
+                    for (prompt, hyp, label) in zip(prompts, hyps, labels):
+                        inputs.append(prompt)
+                        preds.append(label_names[int(hyp)])
+                        golds.append(label)
+                    # print(f'label_names[int(hyp)]: ' + ', '.join([label_names[int(hyp)] for hyp in hyps]))
+                    # print(f'labels: ' + ', '.join(labels))
+                    prompts, labels = [], []                    
 
                 # partial saving
-                if len(preds) % 100 == 0:
+                if len(preds) % (5 * BATCH_SIZE) == 0:
                     inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
                     inference_df.to_csv(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
-            # full saving
+                   
+            # Perform zero-shot / few-shot Inference on last remaining batch data
+            if len(prompts) > 0:
+                out = predict_classification_batch(model, tokenizer, prompts, label_names)
+                hyps = torch.argmax(torch.stack(out, dim=-1), dim=-1).tolist()
+                for (prompt, hyp, label) in zip(prompts, hyps, labels):
+                    inputs.append(prompt)
+                    preds.append(label_names[int(hyp)])
+                    golds.append(label)
+                # print(f'label_names[int(hyp)]: ' + ', '.join([label_names[int(hyp)] for hyp in hyps]))
+                # print(f'labels: ' + ', '.join(labels))
+                prompts, labels = [], []
+                
+            # Full saving
             inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
             inference_df.to_csv(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
 
             cls_report = classification_report(golds, preds, output_dict=True)
             acc, macro_f1, weighted_f1 = cls_report['accuracy'], cls_report['macro avg']['f1-score'], cls_report['weighted avg']['f1-score']
-            print('{DATASET_NAME} {dset_lang}')
+            print(f'{DATASET_NAME} {dset_lang}')
             print('accuracy', acc)
             print('f1 macro', macro_f1)
             print('f1 weighted', weighted_f1)

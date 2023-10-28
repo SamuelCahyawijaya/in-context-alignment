@@ -8,8 +8,42 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
+###
+# Single Instance
+###
+@torch.no_grad()
+def get_logprobs(model, tokenizer, prompt, label_ids=None, label_attn=None):
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024).to('cuda')
+    input_ids, output_ids = inputs["input_ids"], inputs["input_ids"][:, 1:]
+    
+    outputs = model(**inputs, labels=input_ids)
+    logits = outputs.logits
+    
+    if model.config.is_encoder_decoder:
+        logprobs = torch.gather(F.log_softmax(logits, dim=2), 2, label_ids.unsqueeze(2)) * label_attn.unsqueeze(2)
+        return (logprobs.sum() / label_attn.sum()).cpu()
+    else:
+        logprobs = torch.gather(F.log_softmax(logits, dim=2) * inputs['attention_mask'].unsqueeze(2), 2, output_ids.unsqueeze(2))
+        return logprobs.sum().cpu()
+
+def predict_classification(model, tokenizer, prompt, labels):
+    if model.config.is_encoder_decoder:
+        labels_encoded = tokenizer(labels, add_special_tokens=False, padding=True, return_tensors='pt')
+        list_label_ids =labels_encoded['input_ids'].to('cuda')
+        list_label_attn =labels_encoded['attention_mask'].to('cuda')
+        probs = [
+            get_logprobs(model, tokenizer, prompt.replace('[LABELS_CHOICE]', ''), label_ids.view(1,-1), label_attn.view(1,-1)) 
+             for (label_ids, label_attn) in zip(list_label_ids, list_label_attn)
+        ]
+    else:
+        probs = [get_logprobs(model, tokenizer, prompt.replace('[LABELS_CHOICE]', label)) for label in labels]
+    return probs
+
+###
+# Batching Instance
+###
 @torch.inference_mode()
-def get_logprobs(model, tokenizer, inputs, label_ids=None, label_attn=None):
+def get_logprobs_batch(model, tokenizer, inputs, label_ids=None, label_attn=None):
     inputs = tokenizer(inputs, return_tensors="pt", padding=True, truncation=True, max_length=1024).to('cuda')
     input_ids, output_ids, attn_mask = inputs["input_ids"][:,:-1], inputs["input_ids"][:, 1:], inputs['attention_mask'][:,:-1]
     
@@ -18,15 +52,17 @@ def get_logprobs(model, tokenizer, inputs, label_ids=None, label_attn=None):
     
     if model.config.is_encoder_decoder:
         logprobs = torch.gather(F.log_softmax(logits, dim=-1), 2, label_ids.unsqueeze(2)).squeeze(dim=-1) * label_attn
-        return (logprobs.squeeze(dim=-1) / label_attn.sum(dim=-1, keepdims=True)).sum(dim=-1).cpu().detach().numpy()
+        return (logprobs.squeeze(dim=-1) / 100).sum(dim=-1).cpu()
+        # return (logprobs.squeeze(dim=-1) / label_attn.sum(dim=-1, keepdims=True)).sum(dim=-1).cpu()
     else:
         logprobs = torch.gather(F.log_softmax(logits, dim=-1), 2, output_ids.unsqueeze(2)).squeeze(dim=-1)
         logprobs[input_ids == tokenizer.pad_token_id] = 0
-        num_tokens = (input_ids != tokenizer.pad_token_id).sum(dim=-1, keepdims=True)
-        return (logprobs.squeeze(dim=-1) / num_tokens).sum(dim=1).cpu().detach().numpy()
+        return (logprobs.squeeze(dim=-1) / 100).sum(dim=1).cpu()
+        # num_tokens = (input_ids != tokenizer.pad_token_id).sum(dim=-1, keepdims=True)
+        # return (logprobs.squeeze(dim=-1) / num_tokens).sum(dim=1).cpu()
 
 @torch.inference_mode()
-def predict_classification(model, tokenizer, prompts, labels):
+def predict_classification_batch(model, tokenizer, prompts, labels):
     if model.config.is_encoder_decoder:
         labels_encoded = tokenizer(labels, add_special_tokens=False, padding=True, return_tensors='pt')
         list_label_ids = labels_encoded['input_ids'].to('cuda')
@@ -36,7 +72,7 @@ def predict_classification(model, tokenizer, prompts, labels):
         probs = []
         for (label_ids, label_attn) in zip(list_label_ids, list_label_attn):
             probs.append(
-                get_logprobs(model, tokenizer, inputs, label_ids.view(1,-1), label_attn.view(1,-1))
+                get_logprobs_batch(model, tokenizer, inputs, label_ids.view(1,-1), label_attn.view(1,-1))
             )
     else:
         probs = []
@@ -44,5 +80,5 @@ def predict_classification(model, tokenizer, prompts, labels):
             inputs = []
             for prompt in prompts:
                 inputs.append(prompt.replace('[LABELS_CHOICE]', label))
-            probs.append(get_logprobs(model, tokenizer, inputs))
+            probs.append(get_logprobs_batch(model, tokenizer, inputs))
     return probs
