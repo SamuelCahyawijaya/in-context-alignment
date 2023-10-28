@@ -65,7 +65,7 @@ dataset_to_metadata_map = {
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iaa_type> <iia_index_type> <iia_num_exemplar> <include_iio> <batch_size>')
+        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iia_type> <iia_index_type> <iia_num_exemplar> <include_iio> <batch_size>')
 
     BASE_PATH='./dataset'
     MODEL = sys.argv[1]
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     USE_IOA = sys.argv[9] == 'True'
     BATCH_SIZE= int(sys.argv[10])
     
-    SAVE_NAME = f'icl-{ICL_TYPE}-{"$".join(ICL_INDEX_TYPE)}-{ICL_EXEMPLAR_COUNT}_iia-{"$".join(IIA_INDEX_TYPE)}-{IIA_EXEMPLAR_COUNT}_ioa-{USE_IOA}'
+    SAVE_NAME = f'icl-{ICL_TYPE}-{"$".join(ICL_INDEX_TYPE)}-{ICL_EXEMPLAR_COUNT}_iia-{IIA_TYPE}-{"$".join(IIA_INDEX_TYPE)}-{IIA_EXEMPLAR_COUNT}_ioa-{USE_IOA}'
 
     os.makedirs('./metrics_aligner', exist_ok=True) 
     os.makedirs('./outputs_aligner', exist_ok=True) 
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     model.eval()
 
     metrics = {
-        'dataset': [], 'task': [], 'lang': [],
+        'dataset': [], 'lang': [],
         'accuracy': [], 'macro_f1': [], 'weighted_f1': []
     }
     
@@ -278,4 +278,4 @@ if __name__ == '__main__':
             metrics['macro_f1'].append(macro_f1)
             metrics['weighted_f1'].append(weighted_f1)
 
-    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics_aligners/results_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
+    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics/results_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
