@@ -11,7 +11,7 @@ dataset_mapping = {
     'americasnli': ('americasnli_test_dset', 'icl_americasnli_dset', 'spa', 'americasnli_combined_dev_dset', 'americasnli_combined_dev_dset', 'americasnli_label_map.csv'),
     'masakhanews': ('masakhanews_test_dset', 'icl_masakhanews_dset', 'eng', 'mafand_rand_label_dset', 'mafand_rand_label_dset', 'masakhanews_label_map.csv'),
     'nusatranslation': ('nt_senti_test_dset', 'icl_nusax_senti_dset', 'eng', 'nusax_combined_eng_dset', 'nusax_combined_eng_dset', 'nt_label_map.csv'),
-    'tweet-senti-multi': ('tsm_test_dset', 'icl_tsm_senti_dset', 'eng', 'tsm_combined_eng_dset', 'tsm_combined_eng_dset', 'tsm_label_map.csv'),
+    'tweet_senti_multi': ('tweet_senti_multi_test_dset', 'icl_tweet_senti_multi_dset', 'eng', 'tweet_senti_multi_combined_dset', 'tweet_senti_multi_combined_dset', 'tsm_label_map.csv'),
 }
 
 def load_dataset(dataset, base_path='./dataset'):

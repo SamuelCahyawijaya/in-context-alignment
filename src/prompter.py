@@ -63,37 +63,47 @@ class ICLPrompter(object):
 # In-Context Table Completion
 ###
 class ITCPrompter(object):
-    __slots__ = ("headers", "header_template", "row_template", "table_format", "attribute_keys")
+    __slots__ = ("headers", "header_template", "row_template", "query_template", "table_format", 
+                 "query_keys", "target_keys", "label_keys", "source_keys")
 
-    def __init__(self, headers: str, attribute_keys: str, table_format: str = "markdown") -> None:
+    def __init__(self, headers: list[str], query_keys: list[str], label_keys: list[str],
+                target_keys: list[str], source_keys: list[str], table_format: str = "markdown") -> None:
         self.headers = headers
-        self.attribute_keys = attribute_keys
+        self.query_keys = query_keys
+        self.target_keys = target_keys
+        self.label_keys = label_keys
+        self.source_keys = source_keys
         self.table_format = table_format
         
         if table_format == "markdown":
             header = f"| {' | '.join(self.headers)} |\n"
             header_separator = f"|{'|'.join('---' for _ in self.headers)}|\n"
+            exemplar_template = ['{' + att_key + '}' for att_key in self.target_keys + self.label_keys + self.source_keys]
+            query_template = ['{' + att_key + '}' for att_key in self.query_keys]
+            
             self.header_template = header + header_separator
-            self.row_template = f"| {' | '.join('{' + att_key + '}' for att_key in self.attribute_keys)} |"
+            self.row_template = f"| {' | '.join(exemplar_template)} |"
+            self.query_template = f"| {' | '.join(query_template)} | [LABELS_CHOICE]"
         else:
             raise NotImplementedError()
 
     def generate_prompt(self, 
-        input_query: None | str = None, 
-        exemplars: None | dict = None,
+        input_exemplar: None | dict = None, 
+        exemplars: None | dict[list] = None,
     ) -> str:
         # Init Rows
         rows = []
 
         # Format ICL
         if exemplars is not None:
-            numel = len(exemplars[self.attribute_keys[0]])
+            numel = len(exemplars[self.target_keys[0]])
             for i in range(numel):
-                row_dict = {key: exemplars[key][i] for key in self.attribute_keys}
+                row_dict = {key: exemplars[key][i] for key in self.target_keys + self.label_keys + self.source_keys}
                 rows.append(self.row_template.format(**row_dict))
 
         # Format Input Query
-        rows.append(f'| {input_query} | [LABELS_CHOICE]')
+        sample_dict = {key: input_exemplar[key] for key in self.query_keys}
+        rows.append(self.query_template.format(**sample_dict))
 
         # Return Resulting Prompt
         prompt = self.header_template + '\n'.join(rows)
@@ -205,12 +215,15 @@ if __name__ == '__main__':
     print()
     
     print('== TEST ITC ==')
-    itc_prompter = ITCPrompter(headers=['TGT-SENT','LABEL','SRC-SENT'], attribute_keys=['text_1', 'label', 'text_2'])
+    itc_prompter = ITCPrompter(
+        headers=['TGT-SENT','LABEL','SRC-SENT'], query_keys=['text'],
+        label_keys=['label'], target_keys=['text_1'], source_keys=['text_2']
+    )
     
     print('ZERO-SHOT')
     print(
         itc_prompter.generate_prompt(
-            input_query='INPUT-QUERY'
+            input_exemplar={'text': 'Q1', 'label': 'XXX'}
         )
     )
     print()
@@ -218,10 +231,10 @@ if __name__ == '__main__':
     print('FEW-SHOT')
     print(
         itc_prompter.generate_prompt(
-            input_query='INPUT-QUERY',
+            input_exemplar={'text': 'Q1', 'label': 'XXX'},
             exemplars={
                 'text_1': ['EXA1', 'EXA2', 'EXA3'], 
-                'label':['LBL1', 'LBL2', 'LBL3'], 
+                'label': ['LBL1', 'LBL2', 'LBL3'], 
                 'text_2': ['EXB1', 'EXB2', 'EXB3']
             }
         )
