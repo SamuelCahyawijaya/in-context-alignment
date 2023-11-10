@@ -36,16 +36,17 @@ lang_map = {
     'mad': 'Madurese', 'mak': 'Buginese', 'min': 'Minangkabau',
     'amh': 'Amharic', 'hau': 'Hausa', 'ibo': 'Igbo', 'lug': 'Luganda', 'pcm': 'Nigerian Pidgin',
     'sna': 'chShona', 'swa': 'Kiswahili', 'xho': 'isiXhosa', 'yor': 'Yorùbá',
-    'aym': 'Aymara', 'bzd': 'Bribri', 'cni': 'Asháninka', 'grn': 'Guaraní', 'hch': 'Wixarika',
+    'aym': 'Aymara', 'bzd': 'Bribri', 'cni': 'Asháninka', 'gn': 'Guaraní', 'hch': 'Wixarika',
     'nah': 'Nahuatl', 'oto': 'Otomí', 'quy': 'Quechua', 'shp': 'Shipibo-Konibo', 'tar': 'Rarámuri',
-    'ind': 'Indonesian', 'eng': 'English', 'spa': 'spanish'
+    'ind': 'Indonesian', 'eng': 'English', 'spa': 'Spanish', 'ara': 'Arabic', 'fra': 'French', 
+    'deu': 'German', 'hin': 'Hindi', 'ita': 'Italian', 'por': 'Portuguese'
 }
 
 dataset_to_metadata_map = {
     # key: (prompt_template, icl_template, iia_template, icl_keys, iia_keys, x_iia_keys)
     'americasnli': (
-        'Predict the entailment label of the following sentence pair:\n{context}\n{query}',
-        'Premise: "{premise}"; Hypothesis: "{hypothesis}" => {label}',
+        'Predice la etiqueta de implicación del siguiente par de oraciones:\n{context}\n{query}',
+        'Premisa: "{premise}"; Hipótesis: "{hypothesis}" => {label}',
         '{premise_1} => {premise_2}\n{hypothesis_1} => {hypothesis_2}',
         ['premise', 'hypothesis'], ['premise_1', 'hypothesis_1'], ['premise_2', 'hypothesis_2']
     ),
@@ -65,7 +66,7 @@ dataset_to_metadata_map = {
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iia_type> <iia_index_type> <iia_num_exemplar> <include_iio> <batch_size>')
+        raise ValueError('main_input_aligner.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iia_type> <iia_index_type> <iia_num_exemplar> <ioa_type> <batch_size>')
 
     BASE_PATH='./dataset'
     MODEL = sys.argv[1]
@@ -76,10 +77,10 @@ if __name__ == '__main__':
     IIA_TYPE = sys.argv[6] # cross, mono, none
     IIA_INDEX_TYPE = sys.argv[7].split(',') # random, count, tf-idf, sbert
     IIA_EXEMPLAR_COUNT = int(sys.argv[8])
-    USE_IOA = sys.argv[9] == 'True'
+    IOA_TYPE = sys.argv[9]
     BATCH_SIZE= int(sys.argv[10])
     
-    SAVE_NAME = f'icl-{ICL_TYPE}-{"$".join(ICL_INDEX_TYPE)}-{ICL_EXEMPLAR_COUNT}_iia-{IIA_TYPE}-{"$".join(IIA_INDEX_TYPE)}-{IIA_EXEMPLAR_COUNT}_ioa-{USE_IOA}'
+    SAVE_NAME = f'icl-{ICL_TYPE}-{"$".join(ICL_INDEX_TYPE)}-{ICL_EXEMPLAR_COUNT}_iia-{IIA_TYPE}-{"$".join(IIA_INDEX_TYPE)}-{IIA_EXEMPLAR_COUNT}_ioa-{IOA_TYPE}'
 
     os.makedirs('./metrics_aligner', exist_ok=True) 
     os.makedirs('./outputs_aligner', exist_ok=True) 
@@ -108,12 +109,17 @@ if __name__ == '__main__':
     }
     
     for dset_lang, eval_dset in eval_dsets.items():
+        if dset_lang == 'eng':
+            continue
+        if IOA_TYPE in ['True', 'Target'] and dset_lang not in ioa_df.index:
+            continue
+
         print(f'Processing {DATASET_NAME} {dset_lang}')
 
         ###
         # Preprocessing
         ###
-        
+
         # Extract Metadata
         prompt_template, icl_template, iia_template, icl_keys, iia_keys, x_iia_keys = dataset_to_metadata_map[DATASET_NAME]
         
@@ -124,12 +130,11 @@ if __name__ == '__main__':
 
         # Retrieve & preprocess labels
         label_names = list(set(eval_dset['label']))
-        if USE_IOA:
-            # Map label names from original label to target language label using label_map
-            # TODO
-            label_names = label_names
-        label_to_id_dict = { l : i for i, l in enumerate(label_names)}
-
+        if IOA_TYPE in ['True', 'Target']:
+            label_map = ioa_df.loc[dset_lang, 'label_map']
+        else:
+            label_map = None
+        
         ###
         # Indexing
         ###
@@ -164,9 +169,9 @@ if __name__ == '__main__':
         inputs, preds, golds = [], [], []
 
         # Check saved data
-        if exists(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv'):
+        if exists(f'outputs/icl-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv'):
             print("Output exist, use partial log instead")
-            with open(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv') as csvfile:
+            with open(f'outputs/icl-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv') as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     inputs.append(row["Input"])
@@ -204,8 +209,10 @@ if __name__ == '__main__':
                 else:
                     iia_samples = None
 
-                if USE_IOA:
-                    ioa_prompt = 'DUMMY FIRST'
+                if IOA_TYPE == 'True':
+                    label_prompts = [f"{label} means {label_map[label]}" for label in label_names]
+                    label_prompts[-1] = f'and {label_prompts[-1]}'
+                    ioa_prompt = f'In {lang_map[dset_lang]} {", ".join(label_prompts) if len(label_prompts) > 2 else " ".join(label_prompts)}'
                 else:
                     ioa_prompt = None
                     
@@ -233,7 +240,12 @@ if __name__ == '__main__':
                 
                 # Batch Inference
                 if len(prompts) == BATCH_SIZE:
-                    out = predict_classification_batch(model, tokenizer, prompts, label_names)
+                    if IOA_TYPE in ['True', 'Target']:
+                        # Map label names from original label to target language label using label_map
+                        ioa_label_names = [label_map[label] for label in label_names]
+                        out = predict_classification_batch(model, tokenizer, prompts, ioa_label_names)
+                    else:
+                        out = predict_classification_batch(model, tokenizer, prompts, label_names)
                     hyps = torch.argmax(torch.stack(out, dim=-1), dim=-1).tolist()
                     for (prompt, hyp, label) in zip(prompts, hyps, labels):
                         inputs.append(prompt)
@@ -246,7 +258,7 @@ if __name__ == '__main__':
                 # partial saving
                 if len(preds) % (5 * BATCH_SIZE) == 0:
                     inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-                    inference_df.to_csv(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
+                    inference_df.to_csv(f'outputs/icl-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
                    
             # Perform zero-shot / few-shot Inference on last remaining batch data
             if len(prompts) > 0:
@@ -260,22 +272,22 @@ if __name__ == '__main__':
                 # print(f'labels: ' + ', '.join(labels))
                 prompts, labels = [], []
                 
-            # Full saving
-            inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-            inference_df.to_csv(f'outputs/icl-alignment_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
+        # Full saving
+        inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
+        inference_df.to_csv(f'outputs/icl-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
 
-            cls_report = classification_report(golds, preds, output_dict=True)
-            acc, macro_f1, weighted_f1 = cls_report['accuracy'], cls_report['macro avg']['f1-score'], cls_report['weighted avg']['f1-score']
-            print(f'{DATASET_NAME} {dset_lang}')
-            print('accuracy', acc)
-            print('f1 macro', macro_f1)
-            print('f1 weighted', weighted_f1)
-            print("===\n\n")
-            
-            metrics['dataset'].append(DATASET_NAME)
-            metrics['lang'].append(dset_lang)
-            metrics['accuracy'].append(acc)
-            metrics['macro_f1'].append(macro_f1)
-            metrics['weighted_f1'].append(weighted_f1)
+        cls_report = classification_report(golds, preds, output_dict=True)
+        acc, macro_f1, weighted_f1 = cls_report['accuracy'], cls_report['macro avg']['f1-score'], cls_report['weighted avg']['f1-score']
+        print(f'{DATASET_NAME} {dset_lang}')
+        print('accuracy', acc)
+        print('f1 macro', macro_f1)
+        print('f1 weighted', weighted_f1)
+        print("===\n\n")
 
-    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics/results_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
+        metrics['dataset'].append(DATASET_NAME)
+        metrics['lang'].append(dset_lang)
+        metrics['accuracy'].append(acc)
+        metrics['macro_f1'].append(macro_f1)
+        metrics['weighted_f1'].append(weighted_f1)
+
+    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics/results_{DATASET_NAME}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
