@@ -170,7 +170,7 @@ if __name__ == '__main__':
             itc_dset = itc_dsets[dset_lang]    
             itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=x_iia_keys, index_type=ITC_INDEX_TYPE)
         elif ITC_TYPE in ['mono', 'mono-trans']:
-            itc_dset = itc_dsets[dset_lang]    
+            itc_dset = itc_dsets[dset_lang]
             itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=iia_keys, index_type=ITC_INDEX_TYPE)
         else:
             itc_dset = None

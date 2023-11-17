@@ -145,9 +145,9 @@ if __name__ == '__main__':
                 # f'{lang_map[dset_lang]} Label' if LABEL_TYPE == 'Target' else f'{lang_map[xicl_lang]} Label'
             ] + ([ # Source Inputs
                 f'{lang_map[xicl_lang]} {key.split("_")[0].capitalize()}' for key in src_keys
-            ] if ITC_TYPE == 'cross' else []),
+            ] if ITC_TYPE in ['cross', 'mono-trans'] else []),
             target_keys=tgt_keys, label_keys=['label'], 
-            source_keys=src_keys if ITC_TYPE == 'cross' else [], 
+            source_keys=src_keys if ITC_TYPE in ['cross', 'mono-trans'] else [], 
             query_keys=query_keys
         )
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
         if ITC_TYPE == 'cross':
             itc_dset = itc_dsets[dset_lang]    
             itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=x_iia_keys, index_type=ITC_INDEX_TYPE)
-        elif ITC_TYPE == 'mono':
+        elif ITC_TYPE in ['mono', 'mono-trans']:
             itc_dset = itc_dsets[dset_lang]    
             itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=iia_keys, index_type=ITC_INDEX_TYPE)
         else:
