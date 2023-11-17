@@ -55,6 +55,12 @@ dataset_to_metadata_map = {
         '{premise_1} => {premise_2}\n{hypothesis_1} => {hypothesis_2}',
         ['premise', 'hypothesis'], ['premise_1', 'hypothesis_1'], ['premise_2', 'hypothesis_2']
     ),
+    'nusatranslation-ind': (
+        'Prediksikan label sentimen dari kalimat berikut:\n{context}\n{query}',
+        '{text} => {label}',
+        '{text_1} => {text_2}',
+        'text', 'text_1', 'text_2'
+    ),
     'nusatranslation': (
         'Predict the sentiment label of the following sentence:\n{context}\n{query}',
         '{text} => {label}',

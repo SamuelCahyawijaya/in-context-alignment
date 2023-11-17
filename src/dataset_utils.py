@@ -11,6 +11,7 @@ dataset_mapping = {
     'americasnli-spa': ('americasnli_test_spa_dset', 'icl_americasnli_spa_dset', 'spa', 'americasnli_combined_dev_spa_dset', 'americasnli_combined_dev_spa_dset', 'americasnli_spa_label_map.csv'),
     'americasnli': ('americasnli_test_eng_dset', 'icl_americasnli_eng_dset', 'eng', 'americasnli_combined_dev_eng_dset', 'americasnli_combined_dev_eng_dset', 'americasnli_eng_label_map.csv'),
     'masakhanews': ('masakhanews_test_dset', 'icl_masakhanews_dset', 'eng', 'mafand_rand_label_dset', 'mafand_rand_label_dset', 'masakhanews_label_map.csv'),
+    'nusatranslation-ind': ('nt_senti_test_dset', 'icl_nusax_senti_dset', 'ind', 'nusax_combined_ind_dset', 'nusax_combined_ind_dset', 'nt_label_map.csv'),
     'nusatranslation': ('nt_senti_test_dset', 'icl_nusax_senti_dset', 'eng', 'nusax_combined_eng_dset', 'nusax_combined_eng_dset', 'nt_label_map.csv'),
     'tweetsentimulti': ('tweet_senti_multi_test_dset', 'icl_tweet_senti_multi_dset', 'eng', 'tweet_senti_multi_combined_dset', 'tweet_senti_multi_combined_dset', 'tsm_label_map.csv'),
 }

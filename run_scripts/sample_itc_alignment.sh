@@ -8,6 +8,7 @@
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli none random 0 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa none random 0 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation none random 0 Source 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind none random 0 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews none random 0 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti none random 0 Source 1
 
@@ -17,6 +18,7 @@ CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetse
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli none random 0 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa none random 0 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation none random 0 Target 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind none random 0 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews none random 0 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti none random 0 Target 1
 
@@ -28,6 +30,7 @@ CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetse
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono random 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono random 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono random 3 Source 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono random 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono random 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono random 3 Source 1
 
@@ -35,13 +38,31 @@ CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetse
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono sbert 3 Source 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono sbert 3 Source 1
+
+# Mono-Trans Random
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono-trans random 3 Source 8
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono-trans random 3 Source 8
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono-trans random 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono-trans random 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono-trans random 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono-trans random 3 Source 8
+
+# Mono-Trans SBERT
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono-trans sbert 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono-trans sbert 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono-trans sbert 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono-trans sbert 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono-trans sbert 3 Source 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono-trans sbert 3 Source 8
 
 # Cross SBERT
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli cross sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa cross sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation cross sbert 3 Source 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind cross sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews cross sbert 3 Source 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti cross sbert 3 Source 1
 
@@ -53,6 +74,7 @@ CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetse
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono random 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono random 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono random 3 Target 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono random 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono random 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono random 3 Target 1
 
@@ -60,12 +82,30 @@ CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetse
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono sbert 3 Target 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono sbert 3 Target 1
+
+# Mono-Trans Random
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono-trans random 3 Target 8
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono-trans random 3 Target 8
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono-trans random 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono-trans random 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono-trans random 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono-trans random 3 Target 8
+
+# Mono-Trans SBERT
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli mono-trans sbert 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa mono-trans sbert 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation mono-trans sbert 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind mono-trans sbert 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews mono-trans sbert 3 Target 4
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti mono-trans sbert 3 Target 8
 
 # Cross SBERT Target Label
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli cross sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 americasnli-spa cross sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation cross sbert 3 Target 1
+CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 nusatranslation-ind cross sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 masakhanews cross sbert 3 Target 1
 CUDA_VISIBLE_DEVICES=2 python itc_sample_preview.py bigscience/bloom-7b1 tweetsentimulti cross sbert 3 Target 1
