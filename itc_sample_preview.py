@@ -76,6 +76,12 @@ dataset_to_metadata_map = {
     ),
 }
 
+def generate_input_label(prompts, labels):
+    inputs = []
+    for label, prompt in zip(labels, prompts):
+        inputs.append(prompt.replace('[LABELS_CHOICE]', label))
+    return inputs
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         raise ValueError('main_itc_alignment.py <model_path_or_name> <dataset_name> <itc_type> <itc_index_type> <itc_num_exemplar> <label_type> <batch_size>')
@@ -88,42 +94,31 @@ if __name__ == '__main__':
     ITC_EXEMPLAR_COUNT = int(sys.argv[5])
     LABEL_TYPE = sys.argv[6]
     BATCH_SIZE = int(sys.argv[7])
-    
-    SAVE_NAME = f'itc-{ITC_TYPE}-{"$".join(ITC_INDEX_TYPE)}-{ITC_EXEMPLAR_COUNT}-{LABEL_TYPE}'
-
-    os.makedirs('./metrics_itc', exist_ok=True) 
-    os.makedirs('./outputs_itc', exist_ok=True) 
 
     # Load Dataset
-    print('Load Datasets...')
     eval_dsets, icl_dsets, xicl_lang, iia_dsets, itc_dsets, ioa_df = load_dataset(dataset=DATASET_NAME, base_path=BASE_PATH)
-
-    print(f'Loaded {len(eval_dsets)} datasets')
-    for i, dset_subset in enumerate(eval_dsets.keys()):
-        print(f'{i} {dset_subset}')
     
-    # Load Model
-    tokenizer = AutoTokenizer.from_pretrained(MODEL, truncation_side='left')
-    if "bloom" in MODEL or "xglm" in MODEL or "gpt2" in MODEL:
-        model = AutoModelForCausalLM.from_pretrained(MODEL, device_map="auto", load_in_8bit=True)
-    else:
-        model = AutoModelForSeq2SeqLM.from_pretrained(MODEL, device_map="auto", load_in_8bit=True)
-        tokenizer.pad_token = tokenizer.eos_token # Use EOS to pad label
-    # model = torch.compile(model)    
-    model.eval()
-
     metrics = {
         'dataset': [], 'lang': [],
         'accuracy': [], 'macro_f1': [], 'weighted_f1': []
     }
     
+    print('MODEL', MODEL)
+    print('DATASET_NAME', DATASET_NAME)
+    print('ITC_TYPE', ITC_TYPE)
+    print('ITC_INDEX_TYPE', ITC_INDEX_TYPE)
+    print('ITC_EXEMPLAR_COUNT', ITC_EXEMPLAR_COUNT)
+    print('LABEL_TYPE', LABEL_TYPE)
+    print('BATCH_SIZE', BATCH_SIZE)
+    print()
+
     for dset_lang, eval_dset in eval_dsets.items():
         if dset_lang == 'eng':
             continue
         if LABEL_TYPE == 'Target' and dset_lang not in ioa_df.index:
             continue
 
-        print(f'Processing {DATASET_NAME} {dset_lang}')
+        print(f'== {DATASET_NAME} {dset_lang} ==')
 
         ###
         # Preprocessing
@@ -176,21 +171,10 @@ if __name__ == '__main__':
             
         inputs, preds, golds = [], [], []
 
-        # Check saved data
-        if exists(f'outputs_itc/itc-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv'):
-            print("Output exist, use partial log instead")
-            with open(f'outputs_itc/itc-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    inputs.append(row["Input"])
-                    preds.append(row["Pred"])
-                    golds.append(row["Gold"])
-            print(f"Skipping until {len(preds)}")
-
         # Perform Inference
         prompts, labels = [], []
         if len(preds) < len(eval_dset):
-            for e, sample in enumerate(tqdm(eval_dset)):
+            for e, sample in enumerate(eval_dset):
                 if e < len(preds):
                     continue
 
@@ -229,54 +213,15 @@ if __name__ == '__main__':
                 
                 # Batch Inference
                 if len(prompts) == BATCH_SIZE:
-                    if LABEL_TYPE == 'Target':
+                    if LABEL_TYPE in ['True', 'Target']:
                         # Map label names from original label to target language label using label_map
-                        x_label_names = [label_map[label] for label in label_names]
-                        out = predict_classification_batch(model, tokenizer, prompts, x_label_names)
+                        ioa_labels = [label_map[label] for label in labels]
+                        inputs = generate_input_label(prompts, ioa_labels)
                     else:
-                        out = predict_classification_batch(model, tokenizer, prompts, label_names)
-                    hyps = torch.argmax(torch.stack(out, dim=-1), dim=-1).tolist()
-                    for (prompt, hyp, label) in zip(prompts, hyps, labels):
-                        inputs.append(prompt)
-                        preds.append(label_names[int(hyp)])
-                        golds.append(label)
-                    # print(f'label_names[int(hyp)]: ' + ', '.join([label_names[int(hyp)] for hyp in hyps]))
-                    # print(f'labels: ' + ', '.join(labels))
-                    prompts, labels = [], []                    
-
-                # partial saving
-                if len(preds) % (5 * BATCH_SIZE) == 0:
-                    inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-                    inference_df.to_csv(f'outputs_itc/itc-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
-                   
-            # Perform zero-shot / few-shot Inference on last remaining batch data
-            if len(prompts) > 0:
-                out = predict_classification_batch(model, tokenizer, prompts, label_names)
-                hyps = torch.argmax(torch.stack(out, dim=-1), dim=-1).tolist()
-                for (prompt, hyp, label) in zip(prompts, hyps, labels):
-                    inputs.append(prompt)
-                    preds.append(label_names[int(hyp)])
-                    golds.append(label)
-                # print(f'label_names[int(hyp)]: ' + ', '.join([label_names[int(hyp)] for hyp in hyps]))
-                # print(f'labels: ' + ', '.join(labels))
-                prompts, labels = [], []
-                
-        # Full saving
-        inference_df = pd.DataFrame(list(zip(inputs, preds, golds)), columns =["Input", 'Pred', 'Gold'])
-        inference_df.to_csv(f'outputs_itc/itc-alignment_{DATASET_NAME}_{dset_lang}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
-
-        cls_report = classification_report(golds, preds, output_dict=True)
-        acc, macro_f1, weighted_f1 = cls_report['accuracy'], cls_report['macro avg']['f1-score'], cls_report['weighted avg']['f1-score']
-        print(f'{DATASET_NAME} {dset_lang}')
-        print('accuracy', acc)
-        print('f1 macro', macro_f1)
-        print('f1 weighted', weighted_f1)
-        print("===\n\n")
-
-        metrics['dataset'].append(DATASET_NAME)
-        metrics['lang'].append(dset_lang)
-        metrics['accuracy'].append(acc)
-        metrics['macro_f1'].append(macro_f1)
-        metrics['weighted_f1'].append(weighted_f1)
-
-    pd.DataFrame.from_dict(metrics).T.reset_index().to_csv(f'metrics_itc/results_{DATASET_NAME}_{MODEL.split("/")[-1]}_{SAVE_NAME}.csv', index=False)
+                        inputs = generate_input_label(prompts, labels)
+                        
+                    for text_input in inputs:
+                        print(text_input)
+                        print('============')
+                    prompts, labels = [], [] 
+                    exit()
