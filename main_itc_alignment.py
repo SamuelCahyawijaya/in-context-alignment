@@ -56,6 +56,12 @@ dataset_to_metadata_map = {
         '{premise_1} => {premise_2}\n{hypothesis_1} => {hypothesis_2}',
         ['premise', 'hypothesis'], ['premise_1', 'hypothesis_1'], ['premise_2', 'hypothesis_2']
     ),
+    'nusatranslation-ind': (
+        'Prediksikan label sentimen dari kalimat berikut:\n{context}\n{query}',
+        '{text} => {label}',
+        '{text_1} => {text_2}',
+        'text', 'text_1', 'text_2'
+    ),
     'nusatranslation': (
         'Predict the sentiment label of the following sentence:\n{context}\n{query}',
         '{text} => {label}',
@@ -83,7 +89,7 @@ if __name__ == '__main__':
     BASE_PATH='./dataset'
     MODEL = sys.argv[1]
     DATASET_NAME = sys.argv[2] # americasnli, nusatranslation, masakhanews
-    ITC_TYPE = sys.argv[3] # cross, mono, none
+    ITC_TYPE = sys.argv[3] # cross, mono-trans, mono, none
     ITC_INDEX_TYPE = sys.argv[4].split(',') # random, count, tf-idf, sbert
     ITC_EXEMPLAR_COUNT = int(sys.argv[5])
     LABEL_TYPE = sys.argv[6]
@@ -144,9 +150,9 @@ if __name__ == '__main__':
                 # f'{lang_map[dset_lang]} Label' if LABEL_TYPE == 'Target' else f'{lang_map[xicl_lang]} Label'
             ] + ([ # Source Inputs
                 f'{lang_map[xicl_lang]} {key.split("_")[0].capitalize()}' for key in src_keys
-            ] if ITC_TYPE == 'cross' else []),
+            ] if ITC_TYPE in ['cross', 'mono-trans'] else []),
             target_keys=tgt_keys, label_keys=['label'], 
-            source_keys=src_keys if ITC_TYPE == 'cross' else [], 
+            source_keys=src_keys if ITC_TYPE in ['cross', 'mono-trans'] else [], 
             query_keys=query_keys
         )
 
@@ -163,7 +169,7 @@ if __name__ == '__main__':
         if ITC_TYPE == 'cross':
             itc_dset = itc_dsets[dset_lang]    
             itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=x_iia_keys, index_type=ITC_INDEX_TYPE)
-        elif ITC_TYPE == 'mono':
+        elif ITC_TYPE in ['mono', 'mono-trans']:
             itc_dset = itc_dsets[dset_lang]    
             itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=iia_keys, index_type=ITC_INDEX_TYPE)
         else:
@@ -172,8 +178,7 @@ if __name__ == '__main__':
             
         ###
         # Inference
-        ###
-            
+        ###            
         inputs, preds, golds = [], [], []
 
         # Check saved data
