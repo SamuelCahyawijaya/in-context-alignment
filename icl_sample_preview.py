@@ -184,74 +184,73 @@ if __name__ == '__main__':
 
         # Perform Sampling
         prompts, labels = [], []
-        if len(preds) < len(eval_dset):
-            for e, sample in enumerate(eval_dset):
-                if e < len(preds):
-                    continue
+        for e, sample in enumerate(eval_dset):
+            if e < len(preds):
+                continue
 
-                if type(icl_keys) == str:
-                    input_query = sample[icl_keys]
-                else: # type(icl_keys) == list
-                    input_query = [sample[key] for key in icl_keys]
-                label = sample['label']
-                
-                ###
-                # Retrieve Exemplars
-                ###
-                
-                # Retrieve ICL Exemplars
+            if type(icl_keys) == str:
+                input_query = sample[icl_keys]
+            else: # type(icl_keys) == list
+                input_query = [sample[key] for key in icl_keys]
+            label = sample['label']
 
-                if icl_indexer is not None:
-                    icl_samples = icl_indexer.get_similar_samples(input_query, n_samples=ICL_EXEMPLAR_COUNT)
+            ###
+            # Retrieve Exemplars
+            ###
+
+            # Retrieve ICL Exemplars
+
+            if icl_indexer is not None:
+                icl_samples = icl_indexer.get_similar_samples(input_query, n_samples=ICL_EXEMPLAR_COUNT)
+            else:
+                icl_samples = None
+
+            # Retrieve IIA Exemplars
+            if iia_indexer is not None:
+                iia_samples = iia_indexer.get_similar_samples(input_query, n_samples=IIA_EXEMPLAR_COUNT)
+            else:
+                iia_samples = None
+
+            if IOA_TYPE == 'True':
+                label_prompts = [f"{label} means {label_map[label]}" for label in label_names]
+                label_prompts[-1] = f'and {label_prompts[-1]}'
+                ioa_prompt = f'In {lang_map[dset_lang]} {", ".join(label_prompts) if len(label_prompts) > 2 else " ".join(label_prompts)}'
+            elif IOA_TYPE == 'Target':
+                for i in range(ICL_EXEMPLAR_COUNT):
+                    icl_samples['label'][i] = label_map[icl_samples['label'][i]]
+                ioa_prompt = None
+            else:
+                ioa_prompt = None
+
+            ###
+            # Prepare Zero-Shot / Few-Shot Prompt Text
+            ###
+            prompt_text = icl_prompter.generate_prompt(
+                input_exemplar=sample,
+                icl_exemplars=icl_samples,
+                input_alignment_exemplars=iia_samples,
+                output_alignment_prompt=ioa_prompt
+            )
+
+            prompts.append(prompt_text)
+            labels.append(label)
+
+            ###
+            # Perform zero-shot / few-shot Inference
+            ###
+
+            # Batch Inference
+            if len(prompts) == BATCH_SIZE:
+                if IOA_TYPE in ['True', 'Target']:
+                    print('IOA_TYPE', IOA_TYPE)
+                    # Map label names from original label to target language label using label_map
+                    ioa_labels = [label_map[label] for label in labels]
+                    inputs = generate_input_label(prompts, ioa_labels)
                 else:
-                    icl_samples = None
-                    
-                # Retrieve IIA Exemplars
-                if iia_indexer is not None:
-                    iia_samples = iia_indexer.get_similar_samples(input_query, n_samples=IIA_EXEMPLAR_COUNT)
-                else:
-                    iia_samples = None
+                    inputs = generate_input_label(prompts, labels)
 
-                if IOA_TYPE == 'True':
-                    label_prompts = [f"{label} means {label_map[label]}" for label in label_names]
-                    label_prompts[-1] = f'and {label_prompts[-1]}'
-                    ioa_prompt = f'In {lang_map[dset_lang]} {", ".join(label_prompts) if len(label_prompts) > 2 else " ".join(label_prompts)}'
-                elif IOA_TYPE == 'Target':
-                    for i in range(ICL_EXEMPLAR_COUNT):
-                        icl_samples['label'][i] = label_map[icl_samples['label'][i]]
-                    ioa_prompt = None
-                else:
-                    ioa_prompt = None
-                    
-                ###
-                # Prepare Zero-Shot / Few-Shot Prompt Text
-                ###
-                prompt_text = icl_prompter.generate_prompt(
-                    input_exemplar=sample,
-                    icl_exemplars=icl_samples,
-                    input_alignment_exemplars=iia_samples,
-                    output_alignment_prompt=ioa_prompt
-                )
-                    
-                prompts.append(prompt_text)
-                labels.append(label)
-
-                ###
-                # Perform zero-shot / few-shot Inference
-                ###
-                
-                # Batch Inference
-                if len(prompts) == BATCH_SIZE:
-                    if IOA_TYPE in ['True', 'Target']:
-                        print('IOA_TYPE', IOA_TYPE)
-                        # Map label names from original label to target language label using label_map
-                        ioa_labels = [label_map[label] for label in labels]
-                        inputs = generate_input_label(prompts, ioa_labels)
-                    else:
-                        inputs = generate_input_label(prompts, labels)
-                        
-                    for text_input in inputs:
-                        print(text_input)
-                        print('============')
-                    prompts, labels = [], [] 
-                    exit()
+                for text_input in inputs:
+                    print(text_input)
+                    print('============')
+                prompts, labels = [], [] 
+                break

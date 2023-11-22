@@ -179,55 +179,54 @@ if __name__ == '__main__':
 
         # Perform Inference
         prompts, labels = [], []
-        if len(preds) < len(eval_dset):
-            for e, sample in enumerate(eval_dset):
-                if e < len(preds):
-                    continue
+        for e, sample in enumerate(eval_dset):
+            if e < len(preds):
+                continue
 
-                if type(icl_keys) == str:
-                    input_query = sample[icl_keys]
-                else: # type(icl_keys) == list
-                    input_query = [sample[key] for key in icl_keys]
-                label = sample['label']
-                
-                ###
-                # Retrieve Exemplars
-                ###
-                
-                # Retrieve ITC Exemplars
-                if itc_indexer is not None:
-                    itc_samples = itc_indexer.get_similar_samples(input_query, n_samples=ITC_EXEMPLAR_COUNT)
-                    if LABEL_TYPE == 'Target':
-                        itc_samples['label'] = [label_map[label] for label in itc_samples['label']]
+            if type(icl_keys) == str:
+                input_query = sample[icl_keys]
+            else: # type(icl_keys) == list
+                input_query = [sample[key] for key in icl_keys]
+            label = sample['label']
+
+            ###
+            # Retrieve Exemplars
+            ###
+
+            # Retrieve ITC Exemplars
+            if itc_indexer is not None:
+                itc_samples = itc_indexer.get_similar_samples(input_query, n_samples=ITC_EXEMPLAR_COUNT)
+                if LABEL_TYPE == 'Target':
+                    itc_samples['label'] = [label_map[label] for label in itc_samples['label']]
+            else:
+                itc_samples = None
+
+            ###
+            # Prepare Zero-Shot / Few-Shot Prompt Text
+            ###
+            prompt_text = itc_prompter.generate_prompt(
+                input_exemplar=sample,
+                exemplars=itc_samples
+            )
+
+            prompts.append(prompt_text)
+            labels.append(label)
+
+            ###
+            # Perform zero-shot / few-shot Inference
+            ###
+
+            # Batch Inference
+            if len(prompts) == BATCH_SIZE:
+                if LABEL_TYPE in ['True', 'Target']:
+                    # Map label names from original label to target language label using label_map
+                    ioa_labels = [label_map[label] for label in labels]
+                    inputs = generate_input_label(prompts, ioa_labels)
                 else:
-                    itc_samples = None
-                    
-                ###
-                # Prepare Zero-Shot / Few-Shot Prompt Text
-                ###
-                prompt_text = itc_prompter.generate_prompt(
-                    input_exemplar=sample,
-                    exemplars=itc_samples
-                )
-                
-                prompts.append(prompt_text)
-                labels.append(label)
+                    inputs = generate_input_label(prompts, labels)
 
-                ###
-                # Perform zero-shot / few-shot Inference
-                ###
-                
-                # Batch Inference
-                if len(prompts) == BATCH_SIZE:
-                    if LABEL_TYPE in ['True', 'Target']:
-                        # Map label names from original label to target language label using label_map
-                        ioa_labels = [label_map[label] for label in labels]
-                        inputs = generate_input_label(prompts, ioa_labels)
-                    else:
-                        inputs = generate_input_label(prompts, labels)
-                        
-                    for text_input in inputs:
-                        print(text_input)
-                        print('============')
-                    prompts, labels = [], [] 
-                    exit()
+                for text_input in inputs:
+                    print(text_input)
+                    print('============')
+                prompts, labels = [], [] 
+                break
