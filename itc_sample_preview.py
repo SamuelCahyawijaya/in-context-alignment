@@ -25,7 +25,7 @@ import datasets
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM
 
 from dataset_utils import load_dataset
-from indexer import DatasetIndexer
+from indexer import SimpleDatasetIndexer
 from prompter import ICLPrompter, ITCPrompter
 from classifier import predict_classification_batch
 
@@ -163,10 +163,10 @@ if __name__ == '__main__':
         ###
         if ITC_TYPE == 'cross':
             itc_dset = itc_dsets[dset_lang]    
-            itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=x_iia_keys, index_type=ITC_INDEX_TYPE)
+            itc_indexer = SimpleDatasetIndexer(dataset=itc_dset, index_key=x_iia_keys, index_type=ITC_INDEX_TYPE)
         elif ITC_TYPE in ['mono', 'mono-trans']:
             itc_dset = itc_dsets[dset_lang]    
-            itc_indexer = DatasetIndexer(dataset=itc_dset, index_key=iia_keys, index_type=ITC_INDEX_TYPE)
+            itc_indexer = SimpleDatasetIndexer(dataset=itc_dset, index_key=iia_keys, index_type=ITC_INDEX_TYPE)
         else:
             itc_dset = None
             itc_indexer = None

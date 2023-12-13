@@ -25,7 +25,7 @@ import datasets
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM
 
 from dataset_utils import load_dataset
-from indexer import DatasetIndexer
+from indexer import SimpleDatasetIndexer
 from prompter import ICLPrompter, ITCPrompter
 
 DEBUG=False
@@ -46,37 +46,37 @@ dataset_to_metadata_map = {
     'americasnli-spa': (
         'Predice la etiqueta de implicación del siguiente par de oraciones:\n{context}\n{query}',
         'Premisa: "{premise}"; Hipótesis: "{hypothesis}" => {label}',
-        '{premise_1} => {premise_2}\n{hypothesis_1} => {hypothesis_2}',
+        'En {language}, "{premise_1}" significa "{premise_2}" y "{hypothesis_1}" significa "{hypothesis_2}"',
         ['premise', 'hypothesis'], ['premise_1', 'hypothesis_1'], ['premise_2', 'hypothesis_2']
     ),
     'americasnli': (
         'Predict the entailment label of the following pair of sentences:\n{context}\n{query}',
         'Premise: "{premise}"; Hypothesis: "{hypothesis}" => {label}',
-        '{premise_1} => {premise_2}\n{hypothesis_1} => {hypothesis_2}',
+        'In {language}, "{premise_1}" means "{premise_2}" and "{hypothesis_1}" means "{hypothesis_2}"',
         ['premise', 'hypothesis'], ['premise_1', 'hypothesis_1'], ['premise_2', 'hypothesis_2']
     ),
     'nusatranslation-ind': (
         'Prediksikan label sentimen dari kalimat berikut:\n{context}\n{query}',
         '{text} => {label}',
-        '{text_1} => {text_2}',
+        'Dalam bahasa {language}, "{text_1}" artinya "{text_2}"',
         'text', 'text_1', 'text_2'
     ),
     'nusatranslation': (
         'Predict the sentiment label of the following sentence:\n{context}\n{query}',
         '{text} => {label}',
-        '{text_1} => {text_2}',
+        'In {language}, "{text_1}" means "{text_2}"',
         'text', 'text_1', 'text_2'
     ),
     'masakhanews': (
         'Predict the topic of the following news title:\n{context}\n{query}',
         '{text} => {label}',
-        '{text_1} => {text_2}',
+        'In {language}, "{text_1}" means "{text_2}"',
         'text', 'text_1', 'text_2'
     ),
     'tweetsentimulti': (
         'Predict the sentiment label of the following tweet:\n{context}\n{query}',
         '{text} => {label}',
-        '{text_1} => {text_2}',
+        'In {language}, "{text_1}" means "{text_2}"',
         'text', 'text_1', 'text_2'
     ),
 }
@@ -89,7 +89,7 @@ def generate_input_label(prompts, labels):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise ValueError('main_icl_alignment.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iia_type> <iia_index_type> <iia_num_exemplar> <ioa_type> <batch_size>')
+        raise ValueError('main_icl_alignment.py <model_path_or_name> <dataset_name> <icl_type> <icl_index_type> <icl_num_exemplar> <iia_type> <iia_index_type> <iia_num_exemplar> <ioa_type> <alignment_position> <batch_size>')
 
     BASE_PATH='./dataset'
     MODEL = sys.argv[1]
@@ -100,8 +100,9 @@ if __name__ == '__main__':
     IIA_TYPE = sys.argv[6] # cross, mono, none
     IIA_INDEX_TYPE = sys.argv[7].split(',') # random, count, tf-idf, sbert
     IIA_EXEMPLAR_COUNT = int(sys.argv[8])
-    IOA_TYPE = sys.argv[9]
-    BATCH_SIZE= int(sys.argv[10])
+    IOA_TYPE = sys.argv[9] # True => IOA, Target => No IOA, using Target Label, False => No IOA, using Source Label
+    ALIGN_POS = sys.argv[10] # alignment_position "before" or "after" icl_exemplars
+    BATCH_SIZE= int(sys.argv[11])
 
     # Load Dataset
     eval_dsets, icl_dsets, xicl_lang, iia_dsets, itc_dsets, ioa_df = load_dataset(dataset=DATASET_NAME, base_path=BASE_PATH)
@@ -120,6 +121,7 @@ if __name__ == '__main__':
     print('IIA_INDEX_TYPE', IIA_INDEX_TYPE)
     print('IIA_EXEMPLAR_COUNT', IIA_EXEMPLAR_COUNT)
     print('IOA_TYPE', IOA_TYPE)
+    print('ALIGN_POS', ALIGN_POS)
     print('BATCH_SIZE', BATCH_SIZE)
     
     for dset_lang, eval_dset in eval_dsets.items():
@@ -139,7 +141,7 @@ if __name__ == '__main__':
         
         # Prepare Prompter
         icl_prompter = ICLPrompter(
-            prompt_template=prompt_template, icl_template=icl_template, iia_template=iia_template
+            prompt_template=prompt_template, icl_template=icl_template, iia_template=iia_template, alignment_position=ALIGN_POS
         )
 
         # Retrieve & preprocess labels
@@ -154,10 +156,10 @@ if __name__ == '__main__':
         ###
         if ICL_TYPE == 'cross':
             icl_dset = icl_dsets[xicl_lang]    
-            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=ICL_INDEX_TYPE)
+            icl_indexer = SimpleDatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=ICL_INDEX_TYPE)
         elif ICL_TYPE == 'mono':
             icl_dset = icl_dsets[dset_lang]    
-            icl_indexer = DatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=ICL_INDEX_TYPE)
+            icl_indexer = SimpleDatasetIndexer(dataset=icl_dset, index_key=icl_keys, index_type=ICL_INDEX_TYPE)
         else:
             icl_dset = None
             icl_indexer = None
@@ -168,14 +170,14 @@ if __name__ == '__main__':
             
         if IIA_TYPE == 'cross':
             iia_dset = iia_dsets[dset_lang]
-            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=x_iia_keys, index_type=IIA_INDEX_TYPE, sbert=sbert)
+            iia_indexer = SimpleDatasetIndexer(dataset=iia_dset, index_key=x_iia_keys, index_type=IIA_INDEX_TYPE, sbert=sbert)
         elif IIA_TYPE == 'mono':
             iia_dset = iia_dsets[dset_lang]
-            iia_indexer = DatasetIndexer(dataset=iia_dset, index_key=iia_keys, index_type=IIA_INDEX_TYPE, sbert=sbert)
+            iia_indexer = SimpleDatasetIndexer(dataset=iia_dset, index_key=iia_keys, index_type=IIA_INDEX_TYPE, sbert=sbert)
         else:
             iia_dset = None
             iia_indexer = None
-            
+                        
         ###
         # Sample Data
         ###
@@ -229,7 +231,8 @@ if __name__ == '__main__':
                 input_exemplar=sample,
                 icl_exemplars=icl_samples,
                 input_alignment_exemplars=iia_samples,
-                output_alignment_prompt=ioa_prompt
+                output_alignment_prompt=ioa_prompt,
+                alignment_language=lang_map[dset_lang]
             )
 
             prompts.append(prompt_text)
@@ -253,4 +256,5 @@ if __name__ == '__main__':
                     print(text_input)
                     print('============')
                 prompts, labels = [], [] 
-                break
+                exit()
+                # break
