@@ -127,12 +127,12 @@
 ###
 
 # Cross + Mono Unique, TF-IDF, SBERT + IOA => ICL + Input Alignment (New Prompt) (UTS) + Output Alignment
-CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B americasnli cross sbert 0 mono unique,tf-idf,sbert 3 True after 4
-CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B americasnli-spa cross sbert 0 mono unique,tf-idf,sbert 3 True after 4
-CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B nusatranslation cross sbert 0 mono unique,tf-idf,sbert 3 True after 4
-CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B nusatranslation-ind cross sbert 0 mono unique,tf-idf,sbert 3 True after 4
-CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B masakhanews none cross 0 sbert unique,tf-idf,sbert 3 True after 4
-CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B tweetsentimulti cross sbert 0 mono unique,tf-idf,sbert 3 True after 4
+CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B americasnli cross sbert 3 mono unique,tf-idf,sbert 3 True after 4
+CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B americasnli-spa cross sbert 3 mono unique,tf-idf,sbert 3 True after 4
+CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B nusatranslation cross sbert 3 mono unique,tf-idf,sbert 3 True after 4
+CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B nusatranslation-ind cross sbert 3 mono unique,tf-idf,sbert 3 True after 4
+CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B masakhanews none cross 3 sbert unique,tf-idf,sbert 3 True after 4
+CUDA_VISIBLE_DEVICES=1 python main_icl_alignment.py facebook/xglm-7.5B tweetsentimulti cross sbert 3 mono unique,tf-idf,sbert 3 True after 4
 
 ###
 # ICL / IIA / ICL + IIA Target Label
