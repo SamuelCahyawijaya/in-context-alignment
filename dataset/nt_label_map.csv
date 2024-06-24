@@ -1,0 +1,31 @@
+lang,label_map
+btk,"{
+	""negative"": ""negatif"",
+	""neutral"": ""netral"",
+	""positive"": ""positif""
+}"
+sun,"{
+	""negative"": ""negatif"",
+	""neutral"": ""netral"",
+	""positive"": ""positif""
+}"
+jav,"{
+	""negative"": ""negatif"",
+	""neutral"": ""netral"",
+	""positive"": ""positif""
+}"
+mad,"{
+	""negative"": ""negatif"",
+	""neutral"": ""netral"",
+	""positive"": ""positif""
+}"
+mak,"{
+	""negative"": ""negatif"",
+	""neutral"": ""netral"",
+	""positive"": ""positif""
+}"
+min,"{
+	""negative"": ""negatif"",
+	""neutral"": ""netral"",
+	""positive"": ""positif""
+}"

@@ -1,0 +1,82 @@
+lang,label_map
+amh,"{
+	""business"": ""ንግድ"",
+	""entertainment"": ""መዝናኛ"",
+	""health"": ""ትምህርተ፡ጤና"",
+	""politics"": ""ፖለቲካ"",
+	""religion"": ""ሃይማኖት"",
+	""sports"": ""ስፖርት"",
+	""technology"": ""ቴክኖዎሎጂ""
+}"
+hau,"{
+	""business"": ""kasuwanci"",
+	""entertainment"": ""nishadi"",
+	""health"": ""lafiya"",
+	""politics"": ""siyasa"",
+	""religion"": ""addini"",
+	""sports"": ""wasanni"",
+	""technology"": ""fasaha""
+}"
+ibo,"{
+	""business"": ""azụmahịa"",
+	""entertainment"": ""ntụrụndụ"",
+	""health"": ""ahụike"",
+	""politics"": ""ndọrọ ndọrọ ọchịchị"",
+	""religion"": ""okpukpere chi"",
+	""sports"": ""egwuregwu"",
+	""technology"": ""teknụzụ""
+}"
+lug,"{
+	""business"": ""bizinensi"",
+	""entertainment"": ""okwesanyusa"",
+	""health"": ""obulamu"",
+	""politics"": ""ebyobufuzi"",
+	""religion"": ""eddiini"",
+	""sports"": ""ebyemizannyo"",
+	""technology"": ""tekinolojiya""
+}"
+pcm,"{
+	""business"": ""business"",
+	""entertainment"": ""entertainment"",
+	""health"": ""health"",
+	""politics"": ""politics"",
+	""religion"": ""religion"",
+	""sports"": ""sports"",
+	""technology"": ""technology""
+}"
+sna,"{
+	""business"": ""business"",
+	""entertainment"": ""varaidzo"",
+	""health"": ""utano"",
+	""politics"": ""zvematongerwo enyika"",
+	""religion"": ""chitendero"",
+	""sports"": ""mitambo"",
+	""technology"": ""teknolojia""
+}"
+swa,"{
+	""business"": ""biashara"",
+	""entertainment"": ""burudani"",
+	""health"": ""afya"",
+	""politics"": ""siasa"",
+	""religion"": ""dini"",
+	""sports"": ""michezo"",
+	""technology"": ""teknolojia""
+}"
+xho,"{
+	""business"": ""ishishini"",
+	""entertainment"": ""ukuzonwabisa"",
+	""health"": ""impilo"",
+	""politics"": ""kwezopolitiko"",
+	""religion"": ""unqulo"",
+	""sports"": ""ezemidlalo"",
+	""technology"": ""iteknoloji""
+}"
+yor,"{
+	""business"": ""iṣowo"",
+	""entertainment"": ""Idanilaraya"",
+	""health"": ""ilera"",
+	""politics"": ""oselu"",
+	""religion"": ""esin"",
+	""sports"": ""idaraya"",
+	""technology"": ""ọna ẹrọ""
+}"

@@ -1,0 +1,36 @@
+lang,label_map
+arb,"{
+	""negative"": ""سلبي"",
+	""neutral"": ""حيادي"",
+	""positive"": ""إيجابي""
+}"
+fra,"{
+	""negative"": ""négatif"",
+	""neutral"": ""neutre"",
+	""positive"": ""positif""
+}"
+deu,"{
+	""negative"": ""negativ"",
+	""neutral"": ""neutral"",
+	""positive"": ""positiv""
+}"
+hin,"{
+	""negative"": ""नकारात्मक"",
+	""neutral"": ""तटस्थ"",
+	""positive"": ""सकारात्मक""
+}"
+ita,"{
+	""negative"": ""negativo"",
+	""neutral"": ""neutro"",
+	""positive"": ""positivo""
+}"
+por,"{
+	""negative"": ""negativo"",
+	""neutral"": ""neutro"",
+	""positive"": ""positivo""
+}"
+spa,"{
+	""negative"": ""negativo"",
+	""neutral"": ""neutral"",
+	""positive"": ""positivo""
+}"
